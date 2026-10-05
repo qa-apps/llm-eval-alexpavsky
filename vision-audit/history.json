@@ -28,5 +28,15 @@
     "confirmed_findings": 0,
     "model": "qwen3-vl-30b-a3b-screen:latest",
     "commit": "65105b4"
+  },
+  {
+    "run_number": "43",
+    "run_id": "37269677913",
+    "timestamp": "2026-10-05T05:55:04+00:00",
+    "status": "passed",
+    "test_cases": 15,
+    "confirmed_findings": 0,
+    "model": "cloud-eval",
+    "commit": "d85f202"
   }
 ]
