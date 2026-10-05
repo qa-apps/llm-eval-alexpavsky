@@ -240,8 +240,8 @@ jobs:
             status=${PIPESTATUS[0]}
             set -e
 
-            # The Ollama provider currently collapses gateway 423 responses
-            # into near-instant empty "No output" responses. Retry only when
+            # Some provider errors can surface as empty "No output" responses.
+            # Retry only when
             # more than half the suite has that exact infrastructure signature,
             # so a genuine slow blank response cannot become retry-until-green.
             # Keep a hard attempt cap as a second guard.

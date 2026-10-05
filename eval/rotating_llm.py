@@ -1,4 +1,4 @@
-"""LangChain judge adapter for the shared free-tier cloud gateway."""
+"""LangChain judge adapter for the shared cloud evaluation gateway."""
 from __future__ import annotations
 
 import logging

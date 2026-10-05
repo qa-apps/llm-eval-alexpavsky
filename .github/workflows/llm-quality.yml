@@ -163,7 +163,7 @@ jobs:
         id: run_tests
         # "LLM Judge" = the dedicated judge suite; "Content quality" = the
         # @upstream article-quality-judge specs, migrated here so their judge
-        # uses the shared free-tier cloud judge.
+        # uses the shared Go-primary cloud judge.
         run: npx playwright test --grep "LLM Judge|Content quality" --workers=1 --reporter=list,json,html
         env:
           CI: true
