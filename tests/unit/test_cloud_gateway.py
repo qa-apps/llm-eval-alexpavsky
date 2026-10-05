@@ -77,6 +77,16 @@ class CloudGatewayTests(unittest.TestCase):
         body = json.loads(request.call_args.args[0].data)
         self.assertEqual(body["thinking"], {"type": "disabled"})
 
+    def test_promptfoo_judge_uses_separate_go_model(self):
+        answer = io.BytesIO(json.dumps({"choices": [{"message": {"content": "OK"}}]}).encode())
+        env = {"CLOUD_EVAL_ROUTE_MODE": "go-primary", "OPENCODE_API_KEY": "test"}
+        with mock.patch.dict(gateway.os.environ, env, clear=True), mock.patch.object(
+            gateway.urllib.request, "urlopen", return_value=answer
+        ) as request:
+            result = gateway.chat({"model": "cloud-eval-judge", "messages": [{"role": "user", "content": "OK"}]})
+        self.assertEqual(result["model"], "opencode-go-judge/kimi-k2.7-code")
+        self.assertEqual(json.loads(request.call_args.args[0].data)["model"], "kimi-k2.7-code")
+
 
 if __name__ == "__main__":
     unittest.main()

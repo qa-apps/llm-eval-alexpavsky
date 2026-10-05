@@ -59,6 +59,12 @@ def has_image(payload):
 
 def chat(payload: dict, routes=None) -> dict:
     routes = configured_routes(has_image(payload)) if routes is None else routes
+    if payload.get("model") == "cloud-eval-judge" and os.environ.get("CLOUD_EVAL_ROUTE_MODE") == "go-primary":
+        routes = [
+            ("opencode-go-judge", key, url, "kimi-k2.7-code") if name == "opencode-go"
+            else (name, key, url, model)
+            for name, key, url, model in routes
+        ]
     if not routes:
         raise RuntimeError("No cloud evaluation provider key is configured")
     errors = []
@@ -135,7 +141,10 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == "/health":
                 self.reply(200, {"ready": bool(configured_routes()), "providers": [route[0] for route in configured_routes()]})
             else:
-                self.reply(200, {"object": "list", "data": [{"id": "cloud-eval", "object": "model"}]})
+                self.reply(200, {"object": "list", "data": [
+                    {"id": "cloud-eval", "object": "model"},
+                    {"id": "cloud-eval-judge", "object": "model"},
+                ]})
         else:
             self.reply(404, {"error": "not found"})
 
