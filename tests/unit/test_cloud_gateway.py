@@ -84,9 +84,9 @@ class CloudGatewayTests(unittest.TestCase):
             gateway.urllib.request, "urlopen", return_value=answer
         ) as request:
             result = gateway.chat({"model": "cloud-eval-judge", "messages": [{"role": "user", "content": "OK"}]})
-        self.assertEqual(result["model"], "opencode-go-judge/deepseek-v4.1-flash")
+        self.assertEqual(result["model"], "opencode-go-judge/deepseek-v4-flash-vision-exp")
         body = json.loads(request.call_args.args[0].data)
-        self.assertEqual(body["model"], "deepseek-v4.1-flash")
+        self.assertEqual(body["model"], "deepseek-v4-flash-vision-exp")
         self.assertEqual(body["thinking"], {"type": "disabled"})
 
 

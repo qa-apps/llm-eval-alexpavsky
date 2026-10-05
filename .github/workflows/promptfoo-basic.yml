@@ -115,7 +115,7 @@ jobs:
           if not key:
               raise SystemExit("OpenCode Go key is not configured")
           payload = {
-              "model": "deepseek-v4.1-flash",
+              "model": "deepseek-v4-flash-vision-exp",
               "messages": [{"role": "user", "content": 'Return a JSON object with the key "answer" and the value 0.'}],
               "max_tokens": 1024,
               "response_format": {"type": "json_object"},

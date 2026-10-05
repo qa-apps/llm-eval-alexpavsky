@@ -61,7 +61,7 @@ def chat(payload: dict, routes=None) -> dict:
     routes = configured_routes(has_image(payload)) if routes is None else routes
     if payload.get("model") == "cloud-eval-judge" and os.environ.get("CLOUD_EVAL_ROUTE_MODE") == "go-primary":
         routes = [
-            ("opencode-go-judge", key, url, "deepseek-v4.1-flash") if name == "opencode-go"
+            ("opencode-go-judge", key, url, "deepseek-v4-flash-vision-exp") if name == "opencode-go"
             else (name, key, url, model)
             for name, key, url, model in routes
         ]
