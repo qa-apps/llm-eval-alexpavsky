@@ -101,6 +101,48 @@ jobs:
           print(f"OpenCode Go live probe: {result['model']}; usage={result.get('usage', {})}")
           PY
 
+      - name: Probe OpenCode Go JSON judge
+        if: steps.daily_marker.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          key = os.environ.get("OPENCODE_API_KEY", "")
+          if not key:
+              raise SystemExit("OpenCode Go key is not configured")
+          payload = {
+              "model": "deepseek-v4.1-flash",
+              "messages": [{"role": "user", "content": 'Return a JSON object with the key "answer" and the value 0.'}],
+              "max_tokens": 1024,
+              "response_format": {"type": "json_object"},
+              "thinking": {"type": "disabled"},
+          }
+          request = urllib.request.Request(
+              "https://opencode.ai/zen/go/v1/chat/completions",
+              data=json.dumps(payload).encode(),
+              headers={
+                  "Authorization": f"Bearer {key}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "PW-cloud-eval/1.0",
+                  "x-opencode-session": f"promptfoo-judge-probe-{os.environ['GITHUB_RUN_ID']}",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              body = json.loads(error.read())
+              message = str(body.get("error", {}).get("message", "unknown"))
+              raise SystemExit(f"Go judge probe HTTP {error.code}: {message.replace(key, '[redacted]')[:250]}") from None
+          content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+          print(f"Go JSON judge live probe: {json.loads(content)}; usage={result.get('usage', {})}")
+          PY
+
       - name: Start cloud evaluation gateway and verify a real completion
         id: cloud_llm
         if: steps.daily_marker.outputs.cache-hit != 'true'
