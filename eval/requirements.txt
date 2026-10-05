@@ -7,7 +7,7 @@ sentence-transformers==6.1.0
 datasets==5.0.1
 requests==2.34.2
 python-dotenv==1.2.3
-giskard==2.19.2
+giskard[llm]==2.19.2
 pandas==2.3.3
 ipython==9.17.1
 pytest==9.0.3

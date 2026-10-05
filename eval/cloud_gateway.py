@@ -10,6 +10,7 @@ import json
 import os
 import sys
 import time
+import traceback
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -151,7 +152,8 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 result = chat(payload)
             self.reply(200, result)
-        except (ValueError, RuntimeError) as exc:
+        except Exception as exc:
+            traceback.print_exc(file=sys.stderr)
             self.reply(502, {"error": {"message": str(exc), "type": "provider_error"}})
 
 

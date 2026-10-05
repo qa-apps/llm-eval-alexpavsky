@@ -10,7 +10,7 @@ import os
 import sys
 import urllib.request
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
@@ -39,10 +39,17 @@ def upload_file(
     path = Path(file_path)
     if not path.is_file() or path.stat().st_size > MAX_UPLOAD_BYTES:
         return ""
-    prepared = slack_post(token, "files.getUploadURLExternal", {
-        "filename": path.name,
-        "length": path.stat().st_size,
-    })
+    request = urllib.request.Request(
+        "https://slack.com/api/files.getUploadURLExternal",
+        data=urlencode({"filename": path.name, "length": path.stat().st_size}).encode(),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        prepared = json.loads(response.read())
     if not prepared.get("ok"):
         print(f"Slack upload preparation failed: {prepared.get('error')}", file=sys.stderr)
         return ""
@@ -95,7 +102,6 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
     case_id = step.get("test_case_id") or f"VISION-{int(step.get('step', 0)):03d}"
     verdict = str(step.get("verdict") or "unknown").upper()
     marker = ":white_check_mark:" if verdict == "PASSED" else ":x:"
-    image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
     blocks = [
         {
             "type": "header",
@@ -127,7 +133,7 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*Local Vision analysis*\n{slack_text(step.get('summary'))}\n\n"
+                    f"*Cloud Vision analysis*\n{slack_text(step.get('summary'))}\n\n"
                     f"*Browser action:* `{slack_text(selected, 250)}`\n"
                     f"*Checks:* {slack_text(checks or 'No completed assertions')}\n"
                     f"*Deterministic result:* `{slack_text(actual, 80)}`\n\n"
@@ -137,13 +143,6 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             },
         },
     ]
-    if image_url:
-        blocks.append({
-            "type": "image",
-            "image_url": image_url,
-            "alt_text": f"Screenshot for {case_id}"[:2000],
-            "title": {"type": "plain_text", "text": f"{case_id} screenshot"[:2000]},
-        })
     return blocks
 
 

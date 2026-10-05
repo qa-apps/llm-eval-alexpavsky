@@ -1,0 +1,52 @@
+name: OpenCode Go live probe
+
+on:
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+    steps:
+      - name: Make one real Go completion
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.request
+
+          key = os.environ.get("OPENCODE_API_KEY", "")
+          if not key:
+              raise SystemExit("OPENCODE_API_KEY is not configured")
+          request = urllib.request.Request(
+              "https://opencode.ai/zen/go/v1/chat/completions",
+              data=json.dumps({
+                  "model": "glm-5.3-flash",
+                  "messages": [{"role": "user", "content": "In Python, what does len([]) return? One word."}],
+                  "max_tokens": 64,
+              }).encode(),
+              headers={
+                  "Authorization": f"Bearer {key}",
+                  "Content-Type": "application/json",
+                  "User-Agent": "PW-cloud-eval/1.0",
+                  "x-opencode-session": f"go-live-probe-{os.environ['GITHUB_RUN_ID']}",
+              },
+              method="POST",
+          )
+          try:
+              with urllib.request.urlopen(request, timeout=90) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              body = json.loads(error.read())
+              message = body.get("error", {}).get("message", "unknown")
+              raise SystemExit(f"Go probe HTTP {error.code}: {message[:250]}") from None
+          content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+          if not content:
+              raise SystemExit("Go probe returned no answer")
+          print(json.dumps({"model": result.get("model"), "answer": content[:100], "usage": result.get("usage", {})}))
+          PY

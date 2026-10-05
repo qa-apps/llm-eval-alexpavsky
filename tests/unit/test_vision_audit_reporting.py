@@ -237,7 +237,7 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn("cloud evaluator calls: <strong>0</strong>", html)
         self.assertIn("production systems under test", html)
 
-    def test_slack_thread_has_case_details_and_public_screenshot(self):
+    def test_slack_thread_has_case_details_without_unpublished_image_block(self):
         step = sample_report()["steps"][0]
         blocks = SLACK.test_case_blocks(
             step,
@@ -247,11 +247,11 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn("VISION-001", rendered)
         self.assertIn("Verify initial render.", rendered)
         self.assertIn("Expected", rendered)
-        self.assertIn("Local Vision analysis", rendered)
+        self.assertIn("Cloud Vision analysis", rendered)
         self.assertIn("What does a smoke test verify?", rendered)
         self.assertIn("It verifies that critical functionality is available.", rendered)
         self.assertIn("scroll:down", rendered)
-        self.assertIn("runs/510/screenshots/step-01.png", rendered)
+        self.assertNotIn("'type': 'image'", rendered)
 
     def test_slack_upload_completion_targets_the_audit_thread(self):
         with tempfile.NamedTemporaryFile(suffix=".png") as screenshot:
@@ -260,17 +260,19 @@ class VisionAuditReportingTests(unittest.TestCase):
             with mock.patch.object(
                 SLACK,
                 "slack_post",
-                side_effect=[
-                    {"ok": True, "upload_url": "https://upload.slack.test", "file_id": "F1"},
-                    {"ok": True, "files": [{"permalink": "https://slack.test/F1"}]},
-                ],
-            ) as slack_post, mock.patch.object(SLACK.urllib.request, "urlopen"):
+                return_value={"ok": True, "files": [{"permalink": "https://slack.test/F1"}]},
+            ) as slack_post, mock.patch.object(SLACK.urllib.request, "urlopen") as urlopen:
+                urlopen.return_value.__enter__.return_value.read.return_value = json.dumps({
+                    "ok": True, "upload_url": "https://upload.slack.test", "file_id": "F1",
+                }).encode()
                 link = SLACK.upload_file(
                     "token", "C123", screenshot.name, "VISION-001", "1717.0001"
                 )
 
         self.assertEqual(link, "https://slack.test/F1")
-        completion = slack_post.call_args_list[1].args[2]
+        prepared_request = urlopen.call_args_list[0].args[0]
+        self.assertEqual(prepared_request.get_header("Content-type"), "application/x-www-form-urlencoded")
+        completion = slack_post.call_args.args[2]
         self.assertEqual(completion["channel_id"], "C123")
         self.assertEqual(completion["thread_ts"], "1717.0001")
 

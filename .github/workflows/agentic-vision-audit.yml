@@ -207,6 +207,18 @@ jobs:
             --channel "${{ secrets.SLACK_UI_CODEX_CHANNEL_ID }}" \
             --require-delivery
 
+      - name: Preserve Daily Audit evidence and gateway diagnostics
+        if: always() && steps.bootstrap.outcome == 'success'
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: daily-audit-evidence-${{ github.run_number }}
+          path: |
+            ${{ env.AUDIT_OUTPUT_DIR }}
+            cloud-eval-ledger.jsonl
+            cloud-gateway.log
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Finalize Daily Audit status
         if: always()
         shell: bash
