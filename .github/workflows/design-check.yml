@@ -9,6 +9,11 @@ name: Daily Design Check (visual + structural regression)
 # the pixel snapshots are deterministic (no cross-runner font-AA flake). When a
 # design change or break is detected, bug_report_slack.py posts the diff
 # screenshots to the #bug-reports Slack channel.
+#
+# Every run publishes its Playwright HTML report (per-test steps, errors and,
+# on a break, the visual diff viewer) to GitHub Pages under
+# design-check/runs/<run number>/, and the Slack summary links to it, so the
+# daily message opens the full report instead of only the Actions log.
 
 on:
   workflow_dispatch:
@@ -16,6 +21,9 @@ on:
     # 3:10 AM America/New_York. The gate selects the correct DST slot.
     - cron: '10 7 * * *'
     - cron: '10 8 * * *'
+
+permissions:
+  contents: write
 
 concurrency:
   group: design-check-${{ github.ref }}-${{ github.event_name }}
@@ -79,18 +87,61 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+      - name: Publish full report to GitHub Pages
+        id: publish
+        if: always() && hashFiles('playwright-report/index.html') != ''
+        # Reporting, not verification: a gh-pages push race with another
+        # publisher must not turn a green design check red. Slack then falls
+        # back to the GitHub run link only.
+        continue-on-error: true
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./playwright-report
+          destination_dir: design-check/runs/${{ github.run_number }}
+          keep_files: true
+          enable_jekyll: false
+          commit_message: "design check report: run #${{ github.run_number }}"
+
       - name: Notify Slack summary (UI / design)
         if: always()
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
+          REPORT_PUBLISHED: ${{ steps.publish.outcome == 'success' }}
+          RUN_NUMBER: ${{ github.run_number }}
         run: |
+          report_url=""
+          if [ "$REPORT_PUBLISHED" = "true" ]; then
+            owner_lc="$(echo "${GITHUB_REPOSITORY%%/*}" | tr '[:upper:]' '[:lower:]')"
+            report_url="https://${owner_lc}.github.io/${GITHUB_REPOSITORY#*/}/design-check/runs/${RUN_NUMBER}/"
+            # Pages deploys shortly after the push; wait so the Slack button
+            # works on the first click. Not fatal if it is still deploying.
+            python3 - "$report_url" <<'PY'
+          import sys, time, urllib.request
+          url = sys.argv[1]
+          for _ in range(30):
+              try:
+                  with urllib.request.urlopen(url, timeout=10) as resp:
+                      if resp.status == 200:
+                          sys.exit(0)
+              except Exception:
+                  pass
+              time.sleep(5)
+          print(f"{url} is still deploying; the Slack link will work shortly.")
+          PY
+          fi
           # Daily heartbeat to the dedicated UI / design channel, pass or break.
           python3 .github/scripts/notify_slack.py \
             --channel "${{ secrets.SLACK_UI_CODEX_CHANNEL_ID }}" \
             --pipeline "Daily Design Check" \
-            --results-dir test-results
+            --results-dir test-results \
+            --scope "Layout guard for alexpavsky.com: footer, navigation, Digest modal, overflow, console errors and pixel snapshots. Functional, API and AI checks report separately." \
+            --dashboard-url "$report_url" \
+            --dashboard-label "Open full report" \
+            --run-label "GitHub run"
 
       - name: Post design break to Slack #bug-reports
         if: failure()

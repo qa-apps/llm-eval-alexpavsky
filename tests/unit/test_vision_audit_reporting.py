@@ -136,6 +136,40 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn('"X-LLM-Model"', rotating)
         self.assertIn("default_headers=lifecycle_headers", rotating)
 
+    def test_pipeline_summary_links_full_report_and_states_scope(self):
+        payload = PIPELINE_SLACK.build_payload(
+            channel="C123",
+            pipeline="Daily Design Check",
+            run_url="https://github.com/o/r/actions/runs/1",
+            passed=9, failed=0, flaky=0, skipped=0,
+            dashboard_url="https://o.github.io/r/design-check/runs/7/",
+            dashboard_label="Open full report",
+            scope="Layout guard only.",
+            run_label="GitHub run",
+        )
+        blocks = payload["attachments"][0]["blocks"]
+        self.assertEqual(blocks[1]["type"], "context")
+        self.assertEqual(blocks[1]["elements"][0]["text"], "Layout guard only.")
+        buttons = blocks[-1]["elements"]
+        self.assertEqual(
+            [(b["text"]["text"], b["url"]) for b in buttons],
+            [
+                ("Open full report", "https://o.github.io/r/design-check/runs/7/"),
+                ("GitHub run", "https://github.com/o/r/actions/runs/1"),
+            ],
+        )
+
+    def test_pipeline_summary_without_report_keeps_run_button_only(self):
+        payload = PIPELINE_SLACK.build_payload(
+            channel="C123", pipeline="unit", run_url="https://run",
+            passed=1, failed=0, flaky=0, skipped=0,
+        )
+        blocks = payload["attachments"][0]["blocks"]
+        self.assertNotIn("context", [b["type"] for b in blocks])
+        self.assertEqual(
+            [b["text"]["text"] for b in blocks[-1]["elements"]], ["View run"]
+        )
+
     def test_slack_delivery_cannot_pass_without_a_token(self):
         argv = ["notify_slack.py", "--channel", "C123", "--pipeline", "unit", "--require-delivery"]
         with mock.patch.dict(os.environ, {}, clear=True), mock.patch("sys.argv", argv):
