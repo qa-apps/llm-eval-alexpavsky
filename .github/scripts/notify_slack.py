@@ -69,7 +69,8 @@ def build_donut(passed: int, failed: int, flaky: int, skipped: int, width: int =
 
 def build_payload(channel: str, pipeline: str, run_url: str,
                   passed: int, failed: int, flaky: int, skipped: int,
-                  dashboard_url: str = "", dashboard_label: str = "Open results UI") -> dict:
+                  dashboard_url: str = "", dashboard_label: str = "Open results UI",
+                  scope: str = "", run_label: str = "View run") -> dict:
     total = passed + failed + flaky + skipped
 
     if total == 0:
@@ -101,6 +102,15 @@ def build_payload(channel: str, pipeline: str, run_url: str,
                 "emoji": True
             }
         },
+    ]
+    if scope:
+        # One line saying what this pipeline covers, so a green design check is
+        # not read as "the whole site is fine".
+        blocks.append({
+            "type": "context",
+            "elements": [{"type": "mrkdwn", "text": scope}],
+        })
+    blocks += [
         {
             "type": "section",
             "text": {
@@ -132,7 +142,7 @@ def build_payload(channel: str, pipeline: str, run_url: str,
     if run_url:
         action_elements.append({
             "type": "button",
-            "text": {"type": "plain_text", "text": "View run", "emoji": True},
+            "text": {"type": "plain_text", "text": run_label, "emoji": True},
             "url": run_url,
         })
     if action_elements:
@@ -247,6 +257,8 @@ def main() -> None:
     parser.add_argument("--results-pattern", default="*.json", help="Glob under --results-dir to select result JSON files")
     parser.add_argument("--dashboard-url", default="", help="Optional web dashboard URL")
     parser.add_argument("--dashboard-label", default="Open results UI", help="Slack button label for dashboard URL")
+    parser.add_argument("--scope", default="", help="Optional one-line description of what the pipeline covers")
+    parser.add_argument("--run-label", default="View run", help="Slack button label for the GitHub Actions run")
     parser.add_argument(
         "--require-delivery",
         action="store_true",
@@ -282,6 +294,8 @@ def main() -> None:
         run_url=run_url,
         dashboard_url=args.dashboard_url,
         dashboard_label=args.dashboard_label,
+        scope=args.scope,
+        run_label=args.run_label,
         **stats
     )
     delivered = post_message(token, payload)

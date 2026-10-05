@@ -1,6 +1,6 @@
 name: Pages retention
 
-# Five workflows publish into gh-pages with keep_files: true, so nothing on
+# Several workflows publish into gh-pages with keep_files: true, so nothing on
 # that branch is ever removed by a publish. Retention therefore has to be its
 # own job: none of the publishers can safely delete, because with keep_files
 # disabled each one would wipe the sections the others had just written.
