@@ -62,7 +62,7 @@ async function lfGet(path: string): Promise<any> {
 }
 
 /** Poll the supported observations endpoint until ingestion includes token usage. */
-async function waitForTrace(sessionId: string, attempts = 12, delayMs = 5000): Promise<any> {
+async function waitForTrace(sessionId: string, attempts = 10, delayMs = 5000): Promise<any> {
   let latestTrace: any = null;
   for (let i = 0; i < attempts; i++) {
     const from = new Date(Date.now() - 5 * 60_000).toISOString();
@@ -81,6 +81,17 @@ async function waitForTrace(sessionId: string, attempts = 12, delayMs = 5000): P
       if (totalTokens(latestTrace) > 0) return latestTrace;
     }
     await new Promise((r) => setTimeout(r, delayMs));
+  }
+  // Older ingestion SDKs may take 15 minutes to appear in v2. Make one legacy
+  // read for the just-created trace without repeatedly polling its rate-limited endpoint.
+  const list = await lfGet(`/api/public/traces?sessionId=${encodeURIComponent(sessionId)}`);
+  const traceId = list?.data?.[0]?.id;
+  if (traceId) {
+    const legacyTrace = await lfGet(`/api/public/traces/${encodeURIComponent(traceId)}`);
+    if ((legacyTrace?.observations || []).length > 0 && totalTokens(legacyTrace) > 0) {
+      return legacyTrace;
+    }
+    latestTrace = legacyTrace;
   }
   return latestTrace;
 }
