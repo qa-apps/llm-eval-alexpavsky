@@ -120,6 +120,24 @@ def chat(payload: dict, routes=None) -> dict:
             return result
         except (urllib.error.URLError, ValueError, TimeoutError) as exc:
             code = getattr(exc, "code", type(exc).__name__)
+            if isinstance(exc, urllib.error.HTTPError) and code == 400:
+                try:
+                    detail = json.loads(exc.read(4096))
+                    error = detail.get("error") or {}
+                    message = str(error.get("message", "unknown"))
+                    for item in request_payload.get("messages", []):
+                        content = item.get("content") if isinstance(item, dict) else None
+                        if isinstance(content, str) and content:
+                            message = message.replace(content, "[message]")
+                    message = message.replace(key, "[key]")
+                    format_type = (request_payload.get("response_format") or {}).get("type")
+                    print(
+                        f"cloud-eval: {name} 400 fields={sorted(request_payload)} "
+                        f"format={format_type} detail={message[:200]}",
+                        flush=True,
+                    )
+                except (ValueError, AttributeError):
+                    pass
             if code in (401, 402, 403, 404, 410, 429):
                 ROUTE_DISABLED_UNTIL[name] = time.time() + (60 if code == 429 else 86400)
             errors.append(f"{name}: {code}")
