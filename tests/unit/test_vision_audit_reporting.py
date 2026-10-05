@@ -237,7 +237,7 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn("cloud evaluator calls: <strong>0</strong>", html)
         self.assertIn("production systems under test", html)
 
-    def test_slack_thread_has_case_details_without_unpublished_image_block(self):
+    def test_slack_thread_has_case_details_and_published_screenshot(self):
         step = sample_report()["steps"][0]
         blocks = SLACK.test_case_blocks(
             step,
@@ -251,7 +251,8 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn("What does a smoke test verify?", rendered)
         self.assertIn("It verifies that critical functionality is available.", rendered)
         self.assertIn("scroll:down", rendered)
-        self.assertNotIn("'type': 'image'", rendered)
+        self.assertIn("'type': 'image'", rendered)
+        self.assertIn("https://qa-apps.github.io/PW_alexpavsky/vision-audit/runs/510/screenshots/step-01.png", rendered)
 
     def test_slack_upload_completion_targets_the_audit_thread(self):
         with tempfile.NamedTemporaryFile(suffix=".png") as screenshot:
@@ -276,7 +277,7 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertEqual(completion["channel_id"], "C123")
         self.assertEqual(completion["thread_ts"], "1717.0001")
 
-    def test_dashboard_run_still_uploads_screenshot_and_video_to_slack(self):
+    def test_dashboard_run_links_published_screenshot_and_video_in_slack(self):
         report = sample_report()
         report["video"] = "/runner/vision-audit/session.webm"
         with tempfile.TemporaryDirectory() as directory:
@@ -294,17 +295,15 @@ class VisionAuditReportingTests(unittest.TestCase):
             }, clear=True), mock.patch("sys.argv", argv), mock.patch.object(
                 SLACK,
                 "slack_post",
-                side_effect=[{"ok": True, "ts": "1717.0001"}, {"ok": True}],
-            ), mock.patch.object(
-                SLACK,
-                "upload_file",
-                side_effect=["https://slack.test/screenshot", "https://slack.test/video"],
-            ) as upload:
+                side_effect=[{"ok": True, "ts": "1717.0001"}, {"ok": True}, {"ok": True}],
+            ) as posts, mock.patch.object(SLACK, "upload_file") as upload:
                 self.assertEqual(SLACK.main(), 0)
 
-        self.assertEqual(upload.call_count, 2)
-        self.assertEqual(upload.call_args_list[0].args[-1], "1717.0001")
-        self.assertEqual(upload.call_args_list[1].args[-1], "1717.0001")
+        upload.assert_not_called()
+        image = posts.call_args_list[1].args[2]["blocks"][-1]
+        self.assertEqual(image["type"], "image")
+        self.assertEqual(image["image_url"], "https://example.test/audit/screenshots/step-01.png")
+        self.assertIn("/videos/session.webm", posts.call_args_list[2].args[2]["text"])
 
 
 if __name__ == "__main__":

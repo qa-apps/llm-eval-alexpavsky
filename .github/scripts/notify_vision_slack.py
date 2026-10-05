@@ -143,6 +143,13 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             },
         },
     ]
+    image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
+    if image_url:
+        blocks.append({
+            "type": "image",
+            "image_url": image_url,
+            "alt_text": f"Screenshot for {case_id}"[:200],
+        })
     return blocks
 
 
@@ -223,8 +230,8 @@ def main() -> int:
         f"*Candidate observations:* {len(report.get('candidate_findings') or [])} "
         f"(only calibrated findings can fail CI)\n"
         f"*Findings:*\n" + "\n".join(finding_lines(report)) + "\n"
-        "*Evidence:* every screenshot and the session video are attached in this thread; "
-        "raw JSON is available in the full report.\n"
+        "*Evidence:* every screenshot is shown in this thread; the video and raw JSON are in the full report. "
+        "\n"
         f"{' | '.join(link for link in (dashboard_link, run_link) if link)}\n"
         f"Every UI opening and AI input/output pair is documented in this thread."
     )
@@ -236,19 +243,9 @@ def main() -> int:
     thread_ts = result.get("ts")
     if not thread_ts:
         return 1 if args.require_delivery else 0
-    delivered = True
+    delivered = bool(dashboard_url)
     for step in steps:
         case_id = step.get("test_case_id") or f"step {step.get('step')}"
-        screenshot_link = upload_file(
-            token,
-            channel,
-            step.get("screenshot", ""),
-            f"{case_id}: {step.get('test_case_name') or step.get('title') or step.get('url')}",
-            thread_ts,
-        )
-        if not screenshot_link:
-            delivered = False
-            print(f"Slack screenshot upload failed for {case_id}", file=sys.stderr)
         thread_result = slack_post(token, "chat.postMessage", {
             "channel": channel,
             "thread_ts": thread_ts,
@@ -262,16 +259,16 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    video_link = upload_file(
-        token,
-        channel,
-        video,
-        "Agentic Vision Audit recording",
-        thread_ts,
-    )
-    if not video_link:
-        delivered = False
-        print("Slack session-video upload failed", file=sys.stderr)
+    if video and dashboard_url:
+        video_url = f"{dashboard_url.rstrip('/')}/videos/{quote(Path(video).name)}"
+        video_result = slack_post(token, "chat.postMessage", {
+            "channel": channel,
+            "thread_ts": thread_ts,
+            "text": f"<{video_url}|Open Daily Audit session video>",
+        })
+        if not video_result.get("ok"):
+            delivered = False
+            print(f"Slack video link failed: {video_result.get('error')}", file=sys.stderr)
     return 0 if delivered or not args.require_delivery else 1
 
 
