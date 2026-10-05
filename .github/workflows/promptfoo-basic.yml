@@ -14,7 +14,7 @@ on:
     - cron: "30 9 * * *"
 
 concurrency:
-  group: promptfoo-basic-${{ github.ref }}
+  group: promptfoo-cloud-${{ github.ref }}
   cancel-in-progress: false
 
 permissions: read-all
@@ -43,22 +43,20 @@ jobs:
   promptfoo:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    timeout-minutes: 480
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
     outputs:
       eval_day: ${{ steps.eval_day.outputs.date }}
       completion_ready: ${{ steps.completion_ready.outputs.ready }}
     env:
-      LLM_CATALOG_URL: http://127.0.0.1:11434
-      OLLAMA_BASE_URL: ${{ github.event_name == 'schedule' && 'http://127.0.0.1:11445' || 'http://127.0.0.1:11434' }}
-      # Scheduled runs may wait behind interactive work for up to six hours.
-      # Manual runs also need a short recovery window when another local model
-      # is switching; otherwise Promptfoo records the gateway 423 as "No output".
-      LOCAL_LLM_PRIORITY_MAX_WAIT_SEC: ${{ github.event_name == 'schedule' && '21600' || '900' }}
+      CLOUD_EVAL_API_KEY: cloud-eval
       REQUEST_TIMEOUT_MS: '180000'
-      LOCAL_LLM_MODEL: gpt-oss:120b
-      LOCAL_EMBEDDING_MODEL: qwen3-embedding:4b
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
     steps:
       - name: Checkout
@@ -83,96 +81,37 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/promptfoo.done
-          key: bosgame-promptfoo-v2-${{ steps.eval_day.outputs.date }}
+          key: cloud-promptfoo-v1-${{ steps.eval_day.outputs.date }}
 
-      - name: Check local GPT-OSS availability
-        id: local_llm
+      - name: Start cloud evaluation gateway and verify a real completion
+        id: cloud_llm
         if: steps.daily_marker.outputs.cache-hit != 'true'
         shell: bash
         run: |
-          # Since 2026-09-14 the gateway answers 401 without a key; send the runner-provided one.
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          KEY="${LOCAL_LLM_API_KEY}"
-          echo "::add-mask::$KEY"
-          ready=false
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
-          while true; do
-            actual_code=$(printf 'Authorization: Bearer %s\n' "$KEY" | curl --connect-timeout 5 --max-time 15 --silent --show-error --output /dev/null --write-out '%{http_code}' -H @- -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_MODEL" "$OLLAMA_BASE_URL/v1/models") || actual_code=000
-            # 423/503 from the authenticated background endpoint means the
-            # queue is busy. Keep waiting; only 200 is ready to evaluate.
-            if [ "$actual_code" = 200 ] && \
-               models=$(printf 'Authorization: Bearer %s\n' "$KEY" | curl --connect-timeout 5 --max-time 15 --fail --silent --show-error -H @- -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_MODEL" "$LLM_CATALOG_URL/v1/models") && \
-               python3 -c 'import json,sys; wanted=sys.argv[1]; ids=[m.get("id") for m in json.load(sys.stdin).get("data", [])]; ok=wanted in ids; ok or print(f"::warning::{wanted} is not listed by the model catalog; available: {ids}"); raise SystemExit(0 if ok else 1)' "$LOCAL_LLM_MODEL" <<<"$models" && \
-               tags=$(printf 'Authorization: Bearer %s\n' "$KEY" | curl --connect-timeout 5 --max-time 15 --fail --silent --show-error -H @- -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_EMBEDDING_MODEL" "$LLM_CATALOG_URL/api/tags") && \
-               python3 -c 'import json,sys; wanted=sys.argv[1]; names=[m.get("name") for m in json.load(sys.stdin).get("models", [])]; ok=wanted in names; ok or print(f"::warning::{wanted} is not listed by /api/tags; available: {names}"); raise SystemExit(0 if ok else 1)' "$LOCAL_EMBEDDING_MODEL" <<<"$tags"; then
-              ready=true
-              break
-            fi
-            if [[ "$actual_code" =~ ^(401|403)$ ]] || [ "$SECONDS" -ge "$deadline" ]; then
-              break
-            fi
-            echo "Local model gateway is busy or transitioning; retrying availability check in 10s."
-            sleep 10
+          set -euo pipefail
+          nohup python3 -u eval/cloud_gateway.py > cloud-gateway.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:18765/health >/dev/null; then break; fi
+            sleep 1
           done
-          if [ "$ready" = true ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Local model unavailable (reason above); the next hourly schedule will retry."
-          fi
+          curl -fsS --max-time 120 http://127.0.0.1:18765/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"cloud-eval","messages":[{"role":"user","content":"Reply OK"}],"max_tokens":64}' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["choices"][0]["message"]["content"]'
+          echo "run=true" >> "$GITHUB_OUTPUT"
 
-      - name: Nightly Bosgame — report unavailable
-        if: steps.daily_marker.outputs.cache-hit != 'true' && steps.local_llm.outputs.run != 'true'
+      - name: Report gateway failure
+        if: failure() && steps.cloud_llm.outcome == 'failure'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set +e
-          python3 .github/scripts/notify_bosgame_run_slack.py \
+          python3 .github/scripts/notify_eval_status_slack.py \
             --channel "${{ secrets.SLACK_PROMPTFOO_RESULTS_CHANNEL_ID }}" \
-            --suite "Promptfoo Daily" --event down --require-delivery
-          promptfoo_status=$?
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Promptfoo Daily" --event down --require-delivery
-          nightly_status=$?
-          set -e
-          [ "$promptfoo_status" -eq 0 ] && [ "$nightly_status" -eq 0 ]
-
-      - name: Enforce local GPT-OSS availability
-        if: steps.daily_marker.outputs.cache-hit != 'true' && steps.local_llm.outputs.run != 'true'
-        run: |
-          echo "::error::Local GPT-OSS is unavailable; no evaluation was performed."
-          exit 1
-
-      - name: Nightly Bosgame — report available
-        if: steps.local_llm.outputs.run == 'true'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Promptfoo Daily" --event up --require-delivery
-
-      - name: Warm up local model (up to 2 min)
-        if: steps.local_llm.outputs.run == 'true'
-        shell: bash
-        run: |
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          KEY="${LOCAL_LLM_API_KEY}"
-          echo "::add-mask::$KEY"
-          echo "Warming $LOCAL_LLM_MODEL (cold load ~30s; budget 150s)…"
-          printf 'Authorization: Bearer %s\n' "$KEY" | curl -s --max-time 150 -H @- "$OLLAMA_BASE_URL/api/generate" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_MODEL" \
-            -d "{\"model\":\"$LOCAL_LLM_MODEL\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":-1,\"options\":{\"num_predict\":1}}" \
-            >/dev/null || echo "warm-up request timed out (continuing anyway)"
-          if [ -n "${LOCAL_EMBEDDING_MODEL:-}" ]; then
-            printf 'Authorization: Bearer %s\n' "$KEY" | curl -s --max-time 60 -H @- "$OLLAMA_BASE_URL/api/embed" \
-              -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_EMBEDDING_MODEL" \
-              -d "{\"model\":\"$LOCAL_EMBEDDING_MODEL\",\"input\":\"ok\",\"keep_alive\":-1}" >/dev/null || true
-          fi
+            --suite "Promptfoo Daily" --detail "Cloud model gateway failed its live completion check; no test result was fabricated."
 
       - name: Checkout existing gh-pages site (if any)
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_llm.outputs.run == 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: gh-pages
@@ -180,24 +119,24 @@ jobs:
         continue-on-error: true
 
       - name: Set up Node.js
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_llm.outputs.run == 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_llm.outputs.run == 'true'
         run: npm ci
 
       - name: Set up Python
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_llm.outputs.run == 'true'
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
 
       - name: Run promptfoo eval
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_llm.outputs.run == 'true'
         id: eval
         continue-on-error: true
         # Step-level cap so a hung eval can't eat the whole job — the
@@ -216,12 +155,9 @@ jobs:
           CI: "true"
         run: |
           CONFIG=promptfooconfig.yaml
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          export OLLAMA_API_KEY="${LOCAL_LLM_API_KEY}"
-          echo "::add-mask::$OLLAMA_API_KEY"
           expected_count=$(node -e 'const fs=require("fs"); const YAML=require("yaml"); const c=YAML.parse(fs.readFileSync(process.argv[1], "utf8")); console.log(c.tests.length * c.prompts.length * c.providers.length)' "$CONFIG")
           echo "Running promptfoo with $CONFIG"
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
+          deadline=$((SECONDS + 180))
           mkdir -p .promptfoo-quarantine
           if [ -d .promptfoo-attempts ]; then
             mv .promptfoo-attempts ".promptfoo-quarantine/attempts-$GITHUB_RUN_ID"
@@ -288,7 +224,7 @@ jobs:
 
       - name: Validate promptfoo results
         id: validate_results
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_llm.outputs.run == 'true'
         continue-on-error: true
         run: |
           node -e 'const fs=require("fs"); const YAML=require("yaml"); const config=YAML.parse(fs.readFileSync(process.argv[1], "utf8")); const results=JSON.parse(fs.readFileSync(process.argv[2], "utf8")).results?.results ?? []; const providerIds=config.providers.map(provider => typeof provider === "string" ? provider : provider.id); const expected=[]; for (let testIdx=0; testIdx<config.tests.length; testIdx++) for (let promptIdx=0; promptIdx<config.prompts.length; promptIdx++) for (const providerId of providerIds) expected.push({testIdx,promptIdx,providerId,description:config.tests[testIdx].description,vars:config.tests[testIdx].vars}); const actual=results.map(result => ({testIdx:result.testIdx,promptIdx:result.promptIdx,providerId:result.provider?.id,description:result.testCase?.description,vars:result.vars})).sort((a,b) => a.testIdx-b.testIdx || a.promptIdx-b.promptIdx || a.providerId.localeCompare(b.providerId)); expected.sort((a,b) => a.testIdx-b.testIdx || a.promptIdx-b.promptIdx || a.providerId.localeCompare(b.providerId)); if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`test identities differ: expected ${JSON.stringify(expected)}, found ${JSON.stringify(actual)}`); const invalid=results.filter(result => result.error || !String(result.response?.output ?? "").trim()); if (invalid.length) throw new Error(`found ${invalid.length} error or empty-output results`);' promptfooconfig.yaml promptfoo-results.json
@@ -302,7 +238,7 @@ jobs:
 
       - name: Upload promptfoo results
         id: upload_results
-        if: always() && steps.local_llm.outputs.run == 'true' && hashFiles('promptfoo-results.json') != ''
+        if: always() && steps.cloud_llm.outputs.run == 'true' && hashFiles('promptfoo-results.json') != ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: promptfoo-results
@@ -347,62 +283,29 @@ jobs:
             --local-ui-url "${{ vars.PROMPTFOO_LOCAL_UI_URL || 'http://localhost:15500' }}" \
             --require-delivery
 
-      - name: Nightly Bosgame — post results
-        id: nightly_results
-        if: always() && steps.validate_results.outcome == 'success' && steps.upload_results.outcome == 'success' && steps.build_site.outcome == 'success' && steps.upload_pages.outcome == 'success'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Promptfoo Daily" --event result \
-            --format promptfoo --results promptfoo-results.json --require-delivery
-
       - name: Report incomplete Promptfoo evaluation
-        id: incomplete_results
-        if: always() && steps.local_llm.outputs.run == 'true' && (steps.validate_results.outcome != 'success' || steps.upload_results.outcome != 'success' || steps.build_site.outcome != 'success' || steps.upload_pages.outcome != 'success' || steps.notify_slack.outcome != 'success' || steps.nightly_results.outcome != 'success')
+        if: always() && steps.cloud_llm.outputs.run == 'true' && (steps.validate_results.outcome != 'success' || steps.upload_results.outcome != 'success' || steps.build_site.outcome != 'success' || steps.upload_pages.outcome != 'success' || steps.notify_slack.outcome != 'success')
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          set +e
-          promptfoo_status=0
-          nightly_status=0
-          if [ "${{ steps.notify_slack.outcome }}" != success ]; then
-            python3 .github/scripts/notify_bosgame_run_slack.py \
-              --channel "${{ secrets.SLACK_PROMPTFOO_RESULTS_CHANNEL_ID }}" \
-              --suite "Promptfoo Daily" --event down --require-delivery
-            promptfoo_status=$?
-          fi
-          if [ "${{ steps.nightly_results.outcome }}" != success ]; then
-            python3 .github/scripts/notify_bosgame_run_slack.py \
-              --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-              --suite "Promptfoo Daily" --event down --require-delivery
-            nightly_status=$?
-          fi
-          set -e
-          [ "$promptfoo_status" -eq 0 ] && [ "$nightly_status" -eq 0 ]
+          python3 .github/scripts/notify_eval_status_slack.py \
+            --channel "${{ secrets.SLACK_PROMPTFOO_RESULTS_CHANNEL_ID }}" \
+            --suite "Promptfoo Daily" --detail "Evaluation or reporting was incomplete; inspect the workflow logs."
 
       - name: Mark reporting complete
         id: completion_ready
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.eval.outcome == 'success' && steps.validate_results.outcome == 'success' && (steps.assertions_passed.outcome == 'success' || steps.assertions_passed.outcome == 'failure') && steps.upload_results.outcome == 'success' && steps.build_site.outcome == 'success' && steps.upload_pages.outcome == 'success' && steps.notify_slack.outcome == 'success' && steps.nightly_results.outcome == 'success'
+        if: always() && steps.cloud_llm.outputs.run == 'true' && steps.eval.outcome == 'success' && steps.validate_results.outcome == 'success' && (steps.assertions_passed.outcome == 'success' || steps.assertions_passed.outcome == 'failure') && steps.upload_results.outcome == 'success' && steps.build_site.outcome == 'success' && steps.upload_pages.outcome == 'success' && steps.notify_slack.outcome == 'success'
         run: echo "ready=true" >> "$GITHUB_OUTPUT"
 
       # Keep report publishing and Slack notification above this gate, then
       # make the workflow conclusion reflect the real Promptfoo result.
       - name: Enforce Promptfoo result
-        if: always() && steps.local_llm.outputs.run == 'true' && (steps.completion_ready.outputs.ready != 'true' || steps.assertions_passed.outcome != 'success')
+        if: always() && steps.cloud_llm.outputs.run == 'true' && (steps.completion_ready.outputs.ready != 'true' || steps.assertions_passed.outcome != 'success')
         run: |
           echo "::error::Promptfoo assertions failed or the evaluation report was incomplete."
           exit 1
 
-      - name: Release background model lease
-        if: always() && github.event_name == 'schedule'
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background || true
 
   publish-promptfoo-pages:
     name: Publish Pages from GitHub-hosted runner
@@ -456,4 +359,4 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/promptfoo.done
-          key: bosgame-promptfoo-v2-${{ needs.promptfoo.outputs.eval_day }}
+          key: cloud-promptfoo-v1-${{ needs.promptfoo.outputs.eval_day }}

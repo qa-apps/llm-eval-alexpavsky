@@ -85,12 +85,12 @@ class VisionAuditReportingTests(unittest.TestCase):
         for case_id in ("CHAT-001", "CHAT-002", "VOICE-001", "VOICE-002", "CHALLENGE-001"):
             self.assertIn(case_id, source)
 
-    def test_bosgame_workflow_avoids_broken_marketplace_action_extraction(self):
+    def test_cloud_workflow_preserves_evidence_and_delivery(self):
         workflow = (ROOT / ".github/workflows/agentic-vision-audit.yml").read_text(encoding="utf-8")
-        self.assertNotIn("uses:", workflow)
-        self.assertIn("http://127.0.0.1:11445", workflow)
-        self.assertIn("X-LLM-Job-ID", workflow)
-        self.assertIn("X-LLM-Model", workflow)
+        self.assertIn("runs-on: ubuntu-latest", workflow)
+        self.assertIn("http://127.0.0.1:18765/v1", workflow)
+        self.assertIn("NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}", workflow)
+        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", workflow)
         self.assertIn("daily-audit-runs/${{ github.run_id }}", workflow)
         self.assertIn("Daily Audit report is stale", workflow)
         self.assertIn("vision-audit-start-ns", workflow)
@@ -98,7 +98,7 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn("if: always() && steps.bootstrap.outcome == 'success'", workflow)
         self.assertIn('[[ "$outcome" == "success" ]] || failed=1', workflow)
         source = (ROOT / ".github/scripts/vision_audit_agent.mjs").read_text(encoding="utf-8")
-        self.assertIn("report.operational_error ||= `Local Vision review failed", source)
+        self.assertIn("report.operational_error ||= `Vision review failed", source)
 
     def test_vision_delivery_rejects_empty_channel(self):
         argv = [
@@ -113,11 +113,8 @@ class VisionAuditReportingTests(unittest.TestCase):
 
     def test_ragas_completion_requires_current_run_reports_and_eval_steps(self):
         workflow = (ROOT / ".github/workflows/ragas-nightly.yml").read_text(encoding="utf-8")
-        self.assertIn("LLM_CATALOG_URL: http://127.0.0.1:11445", workflow)
-        self.assertNotIn("LLM_CATALOG_URL: http://127.0.0.1:11446", workflow)
-        self.assertIn("OLLAMA_BASE_URL: http://127.0.0.1:11445", workflow)
-        self.assertIn("LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1", workflow)
-        self.assertNotIn("LOCAL_LLM_BASE_URL: http://127.0.0.1:11434/v1", workflow)
+        self.assertIn("CLOUD_EVAL_BASE_URL: http://127.0.0.1:18765/v1", workflow)
+        self.assertIn("OLLAMA_BASE_URL: http://127.0.0.1:18765", workflow)
         self.assertIn("ragas-giskard-start-ns", workflow)
         self.assertIn("Stale report from an earlier run", workflow)
         self.assertIn("RAGAS_EVAL: ${{ steps.ragas_eval.outcome }}", workflow)
@@ -132,8 +129,7 @@ class VisionAuditReportingTests(unittest.TestCase):
             scan,
         )
         rotating = (ROOT / "eval/rotating_llm.py").read_text(encoding="utf-8")
-        self.assertIn('"X-LLM-Job-ID"', rotating)
-        self.assertIn('"X-LLM-Model"', rotating)
+        self.assertIn('"X-Eval-Run-ID"', rotating)
         self.assertIn("default_headers=lifecycle_headers", rotating)
 
     def test_slack_delivery_cannot_pass_without_a_token(self):
@@ -177,9 +173,8 @@ class VisionAuditReportingTests(unittest.TestCase):
 
     def test_llm_quality_rejects_skips_and_stale_verdicts(self):
         workflow = (ROOT / ".github/workflows/llm-quality.yml").read_text(encoding="utf-8")
-        self.assertIn("LLM_CATALOG_URL: http://127.0.0.1:11445", workflow)
-        self.assertNotIn("LLM_CATALOG_URL: http://127.0.0.1:11446", workflow)
-        self.assertIn("retrying in 10s", workflow)
+        self.assertIn("LOCAL_LLM_BASE_URL: http://127.0.0.1:18765/v1", workflow)
+        self.assertIn("Start cloud judge and verify a real completion", workflow)
         self.assertIn("llm-quality-start-ns", workflow)
         self.assertIn('statuses = {"expected", "unexpected", "flaky"}', workflow)
         self.assertIn("No current-run judge verdict files were created", workflow)
@@ -189,7 +184,7 @@ class VisionAuditReportingTests(unittest.TestCase):
         self.assertIn('PROMPTFOO_FAILED_TEST_EXIT_CODE: "0"', promptfoo)
         self.assertIn("steps.eval.outcome == 'success'", promptfoo)
 
-    def test_local_eval_workflows_use_the_gateway_secret(self):
+    def test_eval_workflows_use_cloud_gateway_not_bosgame(self):
         for name in (
             "agent-observability.yml",
             "llm-quality.yml",
@@ -198,21 +193,22 @@ class VisionAuditReportingTests(unittest.TestCase):
             "weekly-qa-report.yml",
         ):
             workflow = (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
-            self.assertIn("LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}", workflow)
-            self.assertNotIn("LOCAL_LLM_API_KEY: ollama", workflow)
-            self.assertNotIn("LOCAL_LLM_API_KEY:-ollama", workflow)
+            self.assertIn("runs-on: ubuntu-latest", workflow)
+            self.assertIn("NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}", workflow)
+            self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", workflow)
+            self.assertNotIn("runs-on: [self-hosted, Linux, X64, bosgame]", workflow)
 
     def test_runtime_workflows_do_not_reference_openrouter(self):
         for path in (ROOT / ".github/workflows").glob("*.yml"):
             self.assertNotIn("OPENROUTER", path.read_text(encoding="utf-8"), path.name)
 
-    def test_weekly_report_uses_only_the_local_llm(self):
+    def test_weekly_report_uses_cloud_gateway(self):
         workflow = (ROOT / ".github/workflows/weekly-qa-report.yml").read_text(encoding="utf-8")
         script = (ROOT / ".github/scripts/weekly_report.py").read_text(encoding="utf-8")
         combined = workflow + script
-        self.assertIn("http://127.0.0.1:11445/v1", combined)
-        self.assertNotIn("GROQ_API_KEY", combined)
-        self.assertNotIn("CEREBRAS_API_KEY", combined)
+        self.assertIn("http://127.0.0.1:18765/v1", combined)
+        self.assertIn("Start cloud report judge and verify a real completion", combined)
+        self.assertNotIn("gpt-oss:120b", combined)
 
     def test_llm_judge_site_keeps_only_latest_retry_per_test(self):
         records = [

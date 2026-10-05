@@ -3,10 +3,9 @@ name: AlexPavsky Daily Audit
 on:
   workflow_dispatch:
   schedule:
-    # 9:15 AM America/New_York, after the overnight text-model queue. The
-    # MacBook is not involved; only the Bosgame runner and local Vision model.
-    - cron: '15 13 * * *'
-    - cron: '15 14 * * *'
+    # 05:45 America/New_York, after the overnight text evaluation queue.
+    - cron: '45 9 * * *'
+    - cron: '45 10 * * *'
 
 concurrency:
   group: agentic-vision-audit-${{ github.ref }}
@@ -30,7 +29,7 @@ jobs:
           fi
           ny_tz="$(TZ=America/New_York date +%Z)"
           case "${{ github.event.schedule }}|$ny_tz" in
-            "15 13 * * *|EDT"|"15 14 * * *|EST") should_run=true ;;
+            "45 9 * * *|EDT"|"45 10 * * *|EST") should_run=true ;;
             *) should_run=false ;;
           esac
           echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
@@ -38,91 +37,54 @@ jobs:
   vision-audit:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write
     env:
-      REPO_DIR: ${{ github.workspace }}/daily-audit-source
+      REPO_DIR: ${{ github.workspace }}
       PAGES_DIR: ${{ github.workspace }}/daily-audit-pages
       SITE_DIR: ${{ github.workspace }}/daily-audit-site
       AUDIT_OUTPUT_DIR: ${{ github.workspace }}/daily-audit-runs/${{ github.run_id }}/vision-audit
-      AUDIT_DEPS_DIR: ${{ github.workspace }}/.daily-audit-deps/playwright-1.58.2
-      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
-      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: ubuntu24.04-x64
-      # Every Vision request goes through the background lifecycle endpoint so
-      # the audit waits for interactive work instead of replacing its model.
-      OLLAMA_BASE_URL: http://127.0.0.1:11445
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-      LOCAL_LLM_JOB_ID: ${{ github.run_id }}
-      VISION_MODEL: qwen3-vl-30b-a3b-screen:latest
+      CLOUD_EVAL_BASE_URL: http://127.0.0.1:18765/v1
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     steps:
-      - name: Bootstrap source without marketplace actions
+      - name: Checkout source
+        uses: actions/checkout@v5
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install browser test dependencies
         id: bootstrap
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Start cloud Vision judge
+        id: vision_gateway
+        continue-on-error: true
         shell: bash
         run: |
           set -euo pipefail
-          AUTH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if [[ -d "$REPO_DIR/.git" ]]; then
-            git -C "$REPO_DIR" remote set-url origin "$AUTH_URL"
-            git -C "$REPO_DIR" fetch --depth 1 origin "$GITHUB_SHA"
-          else
-            mkdir -p "$REPO_DIR"
-            git clone --filter=blob:none --no-checkout "$AUTH_URL" "$REPO_DIR"
-            git -C "$REPO_DIR" fetch --depth 1 origin "$GITHUB_SHA"
-          fi
-          git -C "$REPO_DIR" checkout --detach "$GITHUB_SHA"
-
-          NODE_BIN_DIR=$(find "${RUNNER_TOOL_CACHE:-/nonexistent}/node" -type d -path '*/x64/bin' 2>/dev/null | sort -V | tail -1 || true)
-          if [[ -z "$NODE_BIN_DIR" || ! -x "$NODE_BIN_DIR/node" ]]; then
-            RUNNER_ROOT=$(dirname "$(dirname "$RUNNER_TEMP")")
-            NODE_BIN_DIR="$RUNNER_ROOT/externals/node24/bin"
-          fi
-          echo "$NODE_BIN_DIR" >> "$GITHUB_PATH"
-          export PATH="$NODE_BIN_DIR:$PATH"
-          node --version
-
-          mkdir -p "$AUDIT_DEPS_DIR" "$GITHUB_WORKSPACE/.npm-home" "$GITHUB_WORKSPACE/.npm-cache"
-          export HOME="$GITHUB_WORKSPACE/.npm-home"
-          export npm_config_cache="$GITHUB_WORKSPACE/.npm-cache"
-          if command -v npm >/dev/null 2>&1; then
-            npm install --prefix "$AUDIT_DEPS_DIR" --no-audit --no-fund --ignore-scripts @playwright/test@1.58.2
-            npm exec --prefix "$AUDIT_DEPS_DIR" -- playwright install chromium
-          else
-            RUNNER_ROOT=$(dirname "$(dirname "$RUNNER_TEMP")")
-            NPM_CLI="$RUNNER_ROOT/externals/node24/lib/node_modules/npm/bin/npm-cli.js"
-            node "$NPM_CLI" install --prefix "$AUDIT_DEPS_DIR" --no-audit --no-fund --ignore-scripts @playwright/test@1.58.2
-            node "$NPM_CLI" exec --prefix "$AUDIT_DEPS_DIR" -- playwright install chromium
-          fi
-
-      - name: Wait for local Vision model
-        id: model
-        continue-on-error: true
-        shell: bash
-        run: |
-          for attempt in {1..40}; do
-            if curl --fail --silent --max-time 10 \
-              -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-              -H "X-LLM-Job-ID: $LOCAL_LLM_JOB_ID" \
-              -H "X-LLM-Model: $VISION_MODEL" \
-              "$OLLAMA_BASE_URL/api/tags" | \
-              python3 -c 'import json,sys; wanted=sys.argv[1]; data=json.load(sys.stdin); raise SystemExit(0 if any(m.get("name") == wanted for m in data.get("models", [])) else 1)' "$VISION_MODEL"; then
-              exit 0
-            fi
-            sleep 15
+          nohup python3 -u eval/cloud_gateway.py > cloud-gateway.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:18765/health >/dev/null; then break; fi
+            sleep 1
           done
-          echo "Vision model was not available after 10 minutes."
-          exit 1
+          curl -fsS http://127.0.0.1:18765/health | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ready"]'
 
       - name: Run required UI, AI Chat, Voice, Challenge, and Vision journeys
         id: audit
-        if: steps.model.outcome == 'success'
+        if: steps.vision_gateway.outcome == 'success'
         continue-on-error: true
         env:
           BASE_URL: https://www.alexpavsky.com
-          PLAYWRIGHT_PACKAGE_PATH: ${{ github.workspace }}/.daily-audit-deps/playwright-1.58.2/node_modules/@playwright/test
+          PLAYWRIGHT_PACKAGE_PATH: ${{ github.workspace }}/node_modules/@playwright/test
           VISION_AUDIT_OUTPUT_DIR: ${{ env.AUDIT_OUTPUT_DIR }}
         shell: bash
         run: |
@@ -163,11 +125,11 @@ jobs:
           if report.get("status") not in {"passed", "failed"} or report.get("operational_error"):
               raise SystemExit("Daily Audit did not finish cleanly")
           provenance = report.get("model_provenance") or {}
-          if provenance.get("execution") != "local-only" or provenance.get("cloud_llm_calls") != 0:
-              raise SystemExit("Daily Audit evaluator provenance is not local-only")
+          if provenance.get("execution") != "cloud-routed" or provenance.get("local_llm_calls") != 0:
+              raise SystemExit("Daily Audit evaluator provenance is not cloud-routed")
           usage = report.get("model_usage") or {}
-          if usage.get("calls") != len(expected) or provenance.get("local_llm_calls") != len(expected):
-              raise SystemExit("Daily Audit is missing local Vision decisions")
+          if usage.get("calls") != len(expected) or provenance.get("cloud_llm_calls") != len(expected):
+              raise SystemExit("Daily Audit is missing cloud Vision decisions")
           required = (
               "test_case_name", "objective", "expected_result", "actual_result",
               "summary", "verdict", "browser_evidence",
@@ -179,12 +141,12 @@ jobs:
               screenshot = Path(str(step.get("screenshot") or ""))
               if not screenshot.is_file():
                   raise SystemExit(f"{step.get('test_case_id')} screenshot is missing: {screenshot}")
-              if step.get("llm_execution") != "local-only" or step.get("llm_provider") != "Ollama":
+              if step.get("llm_execution") != "cloud-routed" or step.get("llm_provider") not in {"nvidia-vision", "deepseek"}:
                   raise SystemExit(f"{step.get('test_case_id')} has invalid model provenance")
           video = Path(str(report.get("video") or ""))
           if not video.is_file():
               raise SystemExit(f"Daily Audit video is missing: {video}")
-          print(f"Validated {len(steps)} Daily Audit cases, screenshots, local decisions, and video")
+          print(f"Validated {len(steps)} Daily Audit cases, screenshots, cloud decisions, and video")
           PY
 
       - name: Build and publish detailed Daily Audit UI
@@ -251,7 +213,7 @@ jobs:
         run: |
           failed=0
           for outcome in \
-            "${{ steps.model.outcome }}" \
+            "${{ steps.vision_gateway.outcome }}" \
             "${{ steps.audit.outcome }}" \
             "${{ steps.report_contract.outcome }}" \
             "${{ steps.publish.outcome }}" \
@@ -259,10 +221,3 @@ jobs:
             [[ "$outcome" == "success" ]] || failed=1
           done
           exit "$failed"
-
-      - name: Release background model lease
-        if: always()
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $LOCAL_LLM_JOB_ID" \
-            http://127.0.0.1:11443/release/background || true

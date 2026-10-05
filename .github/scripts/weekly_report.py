@@ -2,8 +2,8 @@
 """
 weekly_report.py — Weekly QA Report generator for alexpavsky.com.
 
-Runs in GitHub Actions every Sunday. Report writing uses the local BossGame
-GPT-OSS model through the background lifecycle gateway.
+Runs in GitHub Actions every Sunday. Report writing uses the cloud evaluation
+model through the local routing gateway.
 
 Delivers reports to:
   1. Slack  (SLACK_WEBHOOK_URL)
@@ -21,9 +21,9 @@ import httpx
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-LOCAL_LLM_URL  = os.environ.get("LOCAL_LLM_BASE_URL", "http://127.0.0.1:11445/v1").rstrip("/")
+LOCAL_LLM_URL  = os.environ.get("LOCAL_LLM_BASE_URL", "http://127.0.0.1:18765/v1").rstrip("/")
 LOCAL_LLM_KEY  = os.environ.get("LOCAL_LLM_API_KEY", "")
-LOCAL_LLM_MODEL = os.environ.get("LOCAL_LLM_MODEL", "gpt-oss:120b")
+LOCAL_LLM_MODEL = os.environ.get("LOCAL_LLM_MODEL", "cloud-eval")
 LOCAL_LLM_JOB_ID = os.environ.get("LOCAL_LLM_JOB_ID", "weekly-qa-report")
 SLACK_URL      = os.environ.get("SLACK_WEBHOOK_URL", "")
 SITE_URL       = os.environ.get("SITE_REPORTS_URL", "")
@@ -36,7 +36,7 @@ REPORT_DATE    = datetime.now(tz=timezone.utc)
 WEEK_START     = REPORT_DATE - timedelta(days=7)
 
 # ---------------------------------------------------------------------------
-# Local LLM call
+# Cloud-routed LLM call
 # ---------------------------------------------------------------------------
 def call_llm(prompt: str, system: str = "") -> str:
     if not LOCAL_LLM_KEY:
@@ -52,7 +52,7 @@ def call_llm(prompt: str, system: str = "") -> str:
         headers={
             "Authorization": f"Bearer {LOCAL_LLM_KEY}",
             "X-LLM-Job-ID": LOCAL_LLM_JOB_ID,
-            "X-LLM-Model": "gpt-oss:120b",
+            "X-LLM-Model": LOCAL_LLM_MODEL,
         },
         timeout=180,
     )
@@ -239,7 +239,7 @@ def main():
     print(f"Verdict files:  {len(verdicts['triage'])} triage, {len(verdicts['weekly'])} weekly")
     if counts["total"] == 0:
         raise SystemExit("No Playwright result counts found; refusing to publish a green zero-test weekly report")
-    print(f"Generating report with local {LOCAL_LLM_MODEL}...")
+    print(f"Generating report with {LOCAL_LLM_MODEL}...")
 
     report_md = generate_report(verdicts, counts)
     print(f"\n--- Report preview (first 300 chars) ---\n{report_md[:300]}\n---\n")

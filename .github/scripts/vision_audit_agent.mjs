@@ -9,19 +9,17 @@ const playwrightPackage = process.env.PLAYWRIGHT_PACKAGE_PATH || '@playwright/te
 const { chromium } = require(playwrightPackage);
 
 const baseUrl = process.env.BASE_URL || 'https://www.alexpavsky.com';
-const ollamaBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-const model = process.env.VISION_MODEL || 'qwen3-vl-30b-a3b-screen:latest';
+const gatewayBaseUrl = (process.env.CLOUD_EVAL_BASE_URL || 'http://127.0.0.1:18765/v1').replace(/\/$/, '');
+const model = 'cloud-eval';
 const outputDir = path.resolve(process.env.VISION_AUDIT_OUTPUT_DIR || 'vision-audit');
 const screenshotDir = path.join(outputDir, 'screenshots');
 const videoDir = path.join(outputDir, 'videos');
 const timeoutMs = Number(process.env.VISION_MODEL_TIMEOUT_MS || 240000);
-const localLlmApiKey = process.env.LOCAL_LLM_API_KEY || '';
-const localLlmJobId = process.env.LOCAL_LLM_JOB_ID || process.env.GITHUB_RUN_ID || 'vision-audit';
 const localLlmHosts = new Set(['127.0.0.1', 'localhost', '::1', 'host.docker.internal']);
-const ollamaUrl = new URL(ollamaBaseUrl);
+const gatewayUrl = new URL(gatewayBaseUrl);
 
-if (!localLlmHosts.has(ollamaUrl.hostname)) {
-  throw new Error(`Vision audit requires a local Ollama endpoint; received ${ollamaUrl.origin}`);
+if (!localLlmHosts.has(gatewayUrl.hostname)) {
+  throw new Error(`Vision audit requires the local cloud routing gateway; received ${gatewayUrl.origin}`);
 }
 
 fs.mkdirSync(screenshotDir, { recursive: true });
@@ -32,16 +30,15 @@ const report = {
   started_at: new Date().toISOString(),
   base_url: baseUrl,
   model,
-  test_generation: 'planned-functional-journeys-with-local-vision-review',
+  test_generation: 'planned-functional-journeys-with-cloud-vision-review',
   model_provenance: {
-    execution: 'local-only',
-    provider: 'Ollama',
-    endpoint: ollamaUrl.origin,
+    execution: 'cloud-routed',
+    provider: 'NVIDIA/DeepSeek fallback',
+    endpoint: gatewayUrl.origin,
     model,
     local_llm_calls: 0,
     cloud_llm_calls: 0,
-    cloud_api_keys_used: [],
-    scope: 'The audit evaluator is local-only. Production AI features under test may use their configured providers.',
+    scope: 'The audit evaluator uses NVIDIA Vision with DeepSeek fallback. Production AI features under test use their configured providers.',
   },
   status: 'running',
   steps: [],
@@ -80,7 +77,7 @@ async function askVisionAgent(imagePath, context) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
-  const prompt = `You are a conservative local visual QA reviewer auditing a completed browser test case.
+  const prompt = `You are a conservative visual QA reviewer auditing a completed browser test case.
 
 Inspect the screenshot together with the URL, browser evidence, and numbered interactive elements below.
 Report only concrete defects visible in the screenshot or directly supported by browser evidence. Do not report
@@ -105,43 +102,38 @@ Current evidence:
 ${JSON.stringify(context, null, 2)}`;
 
   try {
-    const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
+    const response = await fetch(`${gatewayBaseUrl}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localLlmApiKey}`,
-        'X-LLM-Job-ID': localLlmJobId,
-        'X-LLM-Model': model,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model,
         stream: false,
-        format: 'json',
-        keep_alive: '15m',
         messages: [{
           role: 'user',
-          content: prompt,
-          images: [fs.readFileSync(imagePath).toString('base64')],
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'image_url', image_url: { url: `data:image/png;base64,${fs.readFileSync(imagePath).toString('base64')}` } },
+          ],
         }],
-        options: { temperature: 0.0, num_predict: 1200 },
+        max_tokens: 1200,
       }),
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`Ollama HTTP ${response.status}: ${clip(await response.text(), 500)}`);
+      throw new Error(`Vision gateway HTTP ${response.status}: ${clip(await response.text(), 500)}`);
     }
     const payload = await response.json();
     const latency = Date.now() - started;
     report.model_usage.calls += 1;
-    report.model_provenance.local_llm_calls += 1;
-    report.model_usage.prompt_tokens += Number(payload.prompt_eval_count || 0);
-    report.model_usage.completion_tokens += Number(payload.eval_count || 0);
+    report.model_provenance.cloud_llm_calls += 1;
+    report.model_usage.prompt_tokens += Number(payload.usage?.prompt_tokens || 0);
+    report.model_usage.completion_tokens += Number(payload.usage?.completion_tokens || 0);
     report.model_usage.total_latency_ms += latency;
-    const decision = parseJsonObject(payload.message?.content);
+    const decision = parseJsonObject(payload.choices?.[0]?.message?.content);
     if (!decision.summary) {
       throw new Error('Vision model returned no structured summary');
     }
-    return { decision, latency_ms: latency };
+    return { decision, latency_ms: latency, provider_model: payload.model || model };
   } finally {
     clearTimeout(timer);
   }
@@ -566,18 +558,20 @@ async function main() {
         browser_evidence: browserEvidence,
         interactive_elements: elements,
       };
-      let decision = { summary: 'Local Vision review did not complete.', visual_findings: [], functional_findings: [] };
+      let decision = { summary: 'Vision review did not complete.', visual_findings: [], functional_findings: [] };
       let latencyMs = 0;
+      let providerModel = '';
       try {
         const review = await askVisionAgent(screenshot, contextForModel);
         decision = review.decision;
         latencyMs = review.latency_ms;
+        providerModel = review.provider_model;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        decision.summary = `Local Vision reviewer error: ${clip(message, 500)}`;
-        report.operational_error ||= `Local Vision review failed for ${journey.id}: ${clip(message, 1000)}`;
+        decision.summary = `Vision reviewer error: ${clip(message, 500)}`;
+        report.operational_error ||= `Vision review failed for ${journey.id}: ${clip(message, 1000)}`;
         report.deterministic_findings.push({
-          kind: 'infrastructure', severity: 'high', title: `${journey.id} local Vision review failed`,
+          kind: 'infrastructure', severity: 'high', title: `${journey.id} Vision review failed`,
           evidence: message,
         });
       }
@@ -606,7 +600,7 @@ async function main() {
         step: stepNumber,
         test_case_id: journey.id,
         test_case_name: journey.name,
-        test_case_type: 'planned browser journey with deterministic assertions and local Vision review',
+        test_case_type: 'planned browser journey with deterministic assertions and cloud Vision review',
         objective: journey.objective,
         expected_result: journey.expected,
         scenario_input: actionResult.input || journey.input || '',
@@ -621,9 +615,9 @@ async function main() {
         decision,
         action_result: actionResult,
         model_latency_ms: latencyMs,
-        llm_execution: 'local-only',
-        llm_provider: 'Ollama',
-        llm_model: model,
+        llm_execution: 'cloud-routed',
+        llm_provider: providerModel.split('/')[0] || 'unavailable',
+        llm_model: providerModel || model,
       });
     }
   } finally {

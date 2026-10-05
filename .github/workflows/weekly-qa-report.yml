@@ -39,8 +39,15 @@ jobs:
   generate-report:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    timeout-minutes: 390
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
     steps:
       - name: Checkout repo
@@ -64,13 +71,12 @@ jobs:
             --json databaseId \
             --jq '.[].databaseId'); do
             echo "Checking Playwright run ${run_id} for test-results artifact"
-            if gh run download "$run_id" -n test-results -D test-results 2>/dev/null; then
-              if find test-results -name 'results-pure.json' -print -quit | grep -q .; then
+            if gh run download "$run_id" -n test-results -D "test-results/$run_id" 2>/dev/null; then
+              if find "test-results/$run_id" -name 'results-pure.json' -print -quit | grep -q .; then
                 echo "Downloaded test-results from Playwright run ${run_id}"
                 found=1
                 break
               fi
-              find test-results -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             fi
           done
 
@@ -87,46 +93,30 @@ jobs:
       - name: Install dependencies
         run: pip install httpx python-dateutil
 
-      - name: Wait for local GPT-OSS
-        env:
-          LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
+      - name: Start cloud report judge and verify a real completion
         run: |
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          deadline=$((SECONDS + 21600))
-          until curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            -H "X-LLM-Model: gpt-oss:120b" \
-            http://127.0.0.1:11445/v1/models >/dev/null; do
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Local GPT-OSS did not become available within six hours"
-              exit 1
-            fi
-            sleep 10
+          set -euo pipefail
+          nohup python3 -u eval/cloud_gateway.py > cloud-gateway.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:18765/health >/dev/null; then break; fi
+            sleep 1
           done
+          curl -fsS --max-time 120 http://127.0.0.1:18765/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"cloud-eval","messages":[{"role":"user","content":"Reply OK"}],"max_tokens":64}' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["choices"][0]["message"]["content"]'
 
       - name: Generate weekly report and send to Slack + site
         env:
-          LOCAL_LLM_BASE_URL:  http://127.0.0.1:11445/v1
-          LOCAL_LLM_API_KEY:   ${{ secrets.LOCAL_LLM_API_KEY }}
-          LOCAL_LLM_MODEL:     scheduled/gpt-oss:120b
+          LOCAL_LLM_BASE_URL:  http://127.0.0.1:18765/v1
+          LOCAL_LLM_API_KEY:   cloud-eval
+          LOCAL_LLM_MODEL:     cloud-eval
           LOCAL_LLM_JOB_ID:    ${{ github.run_id }}
           SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
           SITE_REPORTS_URL:    https://alexpavsky.com/api/agent-reports
           MAINTENANCE_KEY:     ${{ secrets.MAINTENANCE_KEY }}
           GITHUB_RUN_URL:      ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: python .github/scripts/weekly_report.py
-
-      - name: Release background model lease
-        if: always()
-        env:
-          LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-        run: |
-          curl --connect-timeout 5 --max-time 15 --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background >/dev/null || true
 
       - name: Upload report as artifact
         if: always()

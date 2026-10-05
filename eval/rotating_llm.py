@@ -1,14 +1,4 @@
-"""
-rotating_llm.py — Local LangChain ChatModel for evaluation jobs.
-
-The evaluation stack uses the GPT-OSS model hosted by Ollama on the bosgame
-self-hosted runner. The provider list shape is retained so existing Ragas and
-Giskard integrations do not need a wider rewrite.
-
-All providers below expose an OpenAI-compatible chat-completions API, so a
-single LangChain ChatOpenAI client works for each one — only base_url, model,
-and api_key change per provider.
-"""
+"""LangChain judge adapter for the shared free-tier cloud gateway."""
 from __future__ import annotations
 
 import logging
@@ -27,22 +17,16 @@ log = logging.getLogger("rotating-llm")
 
 
 def lifecycle_headers(model: str) -> dict[str, str]:
-    """Identify this local eval to Bosgame's background model scheduler."""
-    return {
-        "X-LLM-Job-ID": os.environ.get("GITHUB_RUN_ID", "local-rag-eval"),
-        "X-LLM-Model": model,
-    }
+    return {"X-Eval-Run-ID": os.environ.get("GITHUB_RUN_ID", "local-rag-eval")}
 
 
-# Ollama exposes an OpenAI-compatible endpoint. CI runs on bosgame itself, so
-# localhost is both private and independent of external provider quotas.
 def build_provider_list() -> list[dict[str, str]]:
-    """Build the single local provider from environment variables."""
+    """Build the gateway provider; rotation happens per request in the gateway."""
     return [{
-        "name": "ollama",
-        "api_key": os.environ.get("LOCAL_LLM_API_KEY", "ollama"),
-        "base_url": os.environ.get("LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/"),
-        "model": os.environ.get("LOCAL_LLM_MODEL", "gpt-oss:120b"),
+        "name": "cloud-eval",
+        "api_key": os.environ.get("CLOUD_EVAL_API_KEY", "cloud-eval"),
+        "base_url": os.environ.get("CLOUD_EVAL_BASE_URL", "http://127.0.0.1:18765/v1").rstrip("/"),
+        "model": "cloud-eval",
     }]
 
 
@@ -166,13 +150,13 @@ class RotatingJudgeLLM(BaseChatModel):
 def _litellm_model_id(provider: dict[str, str]) -> Optional[str]:
     name = provider["name"]
     model = provider["model"]
-    if name == "ollama":
-        return f"ollama/{model}"
+    if name == "cloud-eval":
+        return f"openai/{model}"
     return None
 
 
 def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
-    """Point Giskard's text judge and embeddings at local Ollama models."""
+    """Point Giskard's text judge and CPU embeddings at the gateway."""
     import giskard
     import numpy as np
     import openai
@@ -181,10 +165,7 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
     from giskard.llm.embeddings import BaseEmbedding, set_default_embedding
 
     provider = providers[0]
-    ollama_root = provider["base_url"].removesuffix("/v1")
-    embedding_root = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/") or ollama_root
-    os.environ["OLLAMA_API_BASE"] = ollama_root
-    os.environ["OLLAMA_BASE_URL"] = ollama_root
+    embedding_root = provider["base_url"].removesuffix("/v1")
     os.environ["LITELLM_REQUEST_TIMEOUT"] = os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")
 
     litellm_ids = [m for m in (_litellm_model_id(p) for p in providers) if m]
@@ -206,7 +187,7 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
     )
     log_fn(f"  Judge: {provider['model']} via {provider['base_url']}")
 
-    embedding_model = os.environ.get("LOCAL_EMBEDDING_MODEL", "qwen3-embedding:4b")
+    embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
 
     class OllamaOpenAIEmbedding(BaseEmbedding):
         def embed(self, texts):
@@ -228,4 +209,4 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
     set_default_embedding(OllamaOpenAIEmbedding())
     log_fn(f"  Embeddings: {embedding_model} via {embedding_root}/api/embed")
 
-    return f"local/{provider['model']}"
+    return f"cloud/{provider['model']}"
