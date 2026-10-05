@@ -43,7 +43,7 @@ jobs:
           from eval.rotating_llm import RotatingJudgeLLM, build_provider_list
           import giskard
 
-          assert build_provider_list()[0]["name"] == "ollama"
+          assert build_provider_list()[0]["name"] == "cloud-eval"
           print("Evaluation runtime imports successfully")
           PY
       - name: Run Python unit tests
