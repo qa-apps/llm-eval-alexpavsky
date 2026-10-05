@@ -128,7 +128,7 @@ def _fmt(value, digits: int = 2) -> str:
 def _pre(text) -> str:
     text = str(text or "")
     text = re.sub(r"<br\s*/?>", "\n", text)
-    return f"<pre>{escape(text)}</pre>"
+    return f"<pre>{escape(text) if text.strip() else '(empty response)'}</pre>"
 
 
 def _badge(passed) -> str:

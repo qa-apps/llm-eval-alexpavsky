@@ -178,7 +178,7 @@ jobs:
         env:
           RAG_API_URL: ${{ inputs.rag_api_url || 'https://alexpavsky.com' }}
           GISKARD_NUM_QUESTIONS: ${{ inputs.giskard_num_questions || '5' }}
-          MIN_GISKARD_CORRECTNESS: '0.50'
+          MIN_GISKARD_CORRECTNESS: '1.0'
         run: |
           python giskard_rag.py
 
@@ -243,11 +243,19 @@ jobs:
               raise SystemExit(f"Ragas report has {len(ragas)}/{expected_ragas} cases")
           if len(giskard) != expected_giskard:
               raise SystemExit(f"Giskard report has {len(giskard)}/{expected_giskard} cases")
-          if not ragas or not all(c.get("prompt") and c.get("answer") and isinstance(c.get("passed"), bool) for c in ragas):
+          if not ragas or not all(
+              c.get("prompt") and isinstance(c.get("answer"), str)
+              and (c["answer"] or c.get("passed") is False)
+              and isinstance(c.get("passed"), bool) for c in ragas
+          ):
               raise SystemExit("Ragas report is missing prompt, answer, or verdict fields")
           if any(not isinstance(c.get("faithfulness"), (int, float)) or not isinstance(c.get("relevancy"), (int, float)) for c in ragas):
               raise SystemExit("Ragas report contains missing judge metrics")
-          if not giskard or not all(c.get("prompt") and c.get("answer") and c.get("status") in {"PASS", "FAIL"} for c in giskard):
+          if not giskard or not all(
+              c.get("prompt") and isinstance(c.get("answer"), str)
+              and (c["answer"] or c.get("status") == "FAIL")
+              and c.get("status") in {"PASS", "FAIL"} for c in giskard
+          ):
               raise SystemExit("Giskard report is missing prompt, answer, or verdict fields")
 
           def validate_outcome(label, data, outcome):
