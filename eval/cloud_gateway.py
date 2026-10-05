@@ -29,7 +29,7 @@ ROUTES = (
 )
 VISION_ROUTES = (
     ("nvidia-vision", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1", "meta/llama-3.2-11b-vision-instruct"),
-    ("opencode-go-vision", "OPENCODE_API_KEY", "https://opencode.ai/zen/go/v1", "glm-5.3-flash"),
+    ("opencode-go-vision", "OPENCODE_API_KEY", "https://opencode.ai/zen/go/v1", "deepseek-v4-flash-vision-exp"),
     ("deepseek", "DEEPSEEK_API_KEY", "https://api.deepseek.com", "deepseek-flash"),
 )
 LEDGER = Path(os.environ.get("CLOUD_EVAL_LEDGER", "cloud-eval-ledger.jsonl"))
@@ -74,6 +74,8 @@ def chat(payload: dict, routes=None) -> dict:
         request_payload.pop("num_predict", None)
         if name.startswith("opencode-go") or name == "deepseek":
             request_payload.pop("temperature", None)
+        if name in ("opencode-go-vision", "deepseek"):
+            request_payload["thinking"] = {"type": "disabled"}
         if name == "nvidia":
             request_payload["chat_template_kwargs"] = {"enable_thinking": False}
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}

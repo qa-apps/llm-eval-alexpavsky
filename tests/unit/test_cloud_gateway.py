@@ -47,8 +47,10 @@ class CloudGatewayTests(unittest.TestCase):
             names = [route[0] for route in gateway.configured_routes()]
         self.assertEqual(names, ["opencode-go", "deepseek"])
         with mock.patch.dict(gateway.os.environ, keys, clear=True):
-            names = [route[0] for route in gateway.configured_routes(True)]
+            vision_routes = gateway.configured_routes(True)
+            names = [route[0] for route in vision_routes]
         self.assertEqual(names, ["opencode-go-vision", "deepseek"])
+        self.assertEqual(vision_routes[0][3], "deepseek-v4-flash-vision-exp")
 
     def test_rate_limit_rotates_and_records_actual_provider(self):
         routes = [
@@ -66,6 +68,14 @@ class CloudGatewayTests(unittest.TestCase):
         entry = json.loads(gateway.LEDGER.read_text())
         self.assertEqual(entry["provider"], "deepseek")
         self.assertEqual(entry["status"], "ok")
+
+    def test_deepseek_fallback_disables_thinking(self):
+        routes = [("deepseek", "test", "https://paid.invalid", "deepseek-flash")]
+        answer = io.BytesIO(json.dumps({"choices": [{"message": {"content": "OK"}}]}).encode())
+        with mock.patch.object(gateway.urllib.request, "urlopen", return_value=answer) as request:
+            gateway.chat({"messages": [{"role": "user", "content": "OK"}]}, routes)
+        body = json.loads(request.call_args.args[0].data)
+        self.assertEqual(body["thinking"], {"type": "disabled"})
 
 
 if __name__ == "__main__":
