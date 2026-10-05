@@ -83,6 +83,23 @@ jobs:
           path: .ci-markers/promptfoo.done
           key: cloud-promptfoo-v1-${{ steps.eval_day.outputs.date }}
 
+      - name: Probe OpenCode Go subscription key
+        if: steps.daily_marker.outputs.cache-hit != 'true'
+        continue-on-error: true
+        run: |
+          python3 - <<'PY'
+          from eval.cloud_gateway import chat, configured_routes
+
+          routes = [route for route in configured_routes() if route[0] == "opencode-go"]
+          if not routes:
+              raise SystemExit("OpenCode Go key is not configured")
+          result = chat({
+              "messages": [{"role": "user", "content": "In Python, what does len([]) return? One word."}],
+              "max_tokens": 64,
+          }, routes)
+          print(f"OpenCode Go live probe: {result['model']}; usage={result.get('usage', {})}")
+          PY
+
       - name: Start cloud evaluation gateway and verify a real completion
         id: cloud_llm
         if: steps.daily_marker.outputs.cache-hit != 'true'
@@ -242,7 +259,10 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: promptfoo-results
-          path: promptfoo-results.json
+          path: |
+            promptfoo-results.json
+            cloud-eval-ledger.jsonl
+            cloud-gateway.log
           retention-days: 14
 
       - name: Build Promptfoo Pages UI
