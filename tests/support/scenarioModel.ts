@@ -48,7 +48,8 @@ export function judgeModel(): LanguageModel {
       "X-LLM-Model": config.upstreamModel,
     },
   });
-  return p.chat(config.model);
+  // Scenario's LanguageModel type lags the provider SDK; the live adapter uses the same chat contract.
+  return p.chat(config.model) as unknown as LanguageModel;
 }
 
 export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeResult {
