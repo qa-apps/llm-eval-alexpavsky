@@ -124,7 +124,10 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: weekly-report-${{ github.run_id }}
-          path: judge-verdicts/weekly-report-*.md
+          path: |
+            judge-verdicts/weekly-report-*.md
+            cloud-eval-ledger.jsonl
+            cloud-gateway.log
           retention-days: 90
           if-no-files-found: ignore
 

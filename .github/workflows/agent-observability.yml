@@ -422,6 +422,17 @@ jobs:
           LANGFUSE_HOST: ${{ vars.LANGFUSE_HOST || 'https://us.cloud.langfuse.com' }}
         run: npx vitest run tests/observability
 
+      - name: Save observability judge calls
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: observability-judge-calls-${{ github.run_number }}
+          path: |
+            cloud-eval-ledger.jsonl
+            cloud-gateway.log
+          retention-days: 30
+          if-no-files-found: warn
+
 
   slack-observability:
     needs: agent-checks
