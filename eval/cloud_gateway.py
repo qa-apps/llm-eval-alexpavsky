@@ -61,7 +61,7 @@ def chat(payload: dict, routes=None) -> dict:
     routes = configured_routes(has_image(payload)) if routes is None else routes
     if payload.get("model") == "cloud-eval-judge" and os.environ.get("CLOUD_EVAL_ROUTE_MODE") == "go-primary":
         routes = [
-            ("opencode-go-judge", key, url, "kimi-k2.7-code") if name == "opencode-go"
+            ("opencode-go-judge", key, url, "deepseek-v4.1-flash") if name == "opencode-go"
             else (name, key, url, model)
             for name, key, url, model in routes
         ]
@@ -80,7 +80,7 @@ def chat(payload: dict, routes=None) -> dict:
         request_payload.pop("num_predict", None)
         if name.startswith("opencode-go") or name == "deepseek":
             request_payload.pop("temperature", None)
-        if name in ("opencode-go-vision", "deepseek"):
+        if name in ("opencode-go-vision", "opencode-go-judge", "deepseek"):
             request_payload["thinking"] = {"type": "disabled"}
         if name == "nvidia":
             request_payload["chat_template_kwargs"] = {"enable_thinking": False}
