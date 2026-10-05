@@ -33,12 +33,12 @@ const report = {
   test_generation: 'planned-functional-journeys-with-cloud-vision-review',
   model_provenance: {
     execution: 'cloud-routed',
-    provider: 'NVIDIA/DeepSeek fallback',
+    provider: 'OpenCode Go/DeepSeek fallback',
     endpoint: gatewayUrl.origin,
     model,
     local_llm_calls: 0,
     cloud_llm_calls: 0,
-    scope: 'The audit evaluator uses NVIDIA Vision with DeepSeek fallback. Production AI features under test use their configured providers.',
+    scope: 'The audit evaluator uses OpenCode Go Vision with direct DeepSeek fallback. Production AI features under test use their configured providers.',
   },
   status: 'running',
   steps: [],
@@ -116,6 +116,7 @@ ${JSON.stringify(context, null, 2)}`;
           ],
         }],
         max_tokens: 1200,
+        response_format: { type: 'json_object' },
       }),
       signal: controller.signal,
     });

@@ -22,7 +22,7 @@ defaultTest:
           max_tokens: 1024
 providers:
   - id: openai:chat:cloud-eval
-    label: Free-tier cloud rotation; DeepSeek fallback
+    label: OpenCode Go; direct DeepSeek fallback
     config:
       apiBaseUrl: http://127.0.0.1:18765/v1
       apiKeyEnvar: CLOUD_EVAL_API_KEY

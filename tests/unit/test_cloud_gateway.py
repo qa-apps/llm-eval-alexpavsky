@@ -40,6 +40,16 @@ class CloudGatewayTests(unittest.TestCase):
         with mock.patch.dict(gateway.os.environ, {"NVIDIA_API_KEY": "test", "DEEPSEEK_API_KEY": "test"}, clear=True):
             self.assertEqual([route[0] for route in gateway.configured_routes(True)], ["nvidia-vision", "deepseek"])
 
+    def test_qa_route_mode_uses_go_then_direct_deepseek(self):
+        keys = {route[1]: "test" for route in gateway.ROUTES}
+        keys["CLOUD_EVAL_ROUTE_MODE"] = "go-primary"
+        with mock.patch.dict(gateway.os.environ, keys, clear=True):
+            names = [route[0] for route in gateway.configured_routes()]
+        self.assertEqual(names, ["opencode-go", "deepseek"])
+        with mock.patch.dict(gateway.os.environ, keys, clear=True):
+            names = [route[0] for route in gateway.configured_routes(True)]
+        self.assertEqual(names, ["opencode-go-vision", "deepseek"])
+
     def test_rate_limit_rotates_and_records_actual_provider(self):
         routes = [
             ("free", "test", "https://free.invalid/v1", "free-model"),

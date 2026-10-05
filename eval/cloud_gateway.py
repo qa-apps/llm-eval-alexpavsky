@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Small OpenAI-compatible gateway for scheduled evaluations.
 
-Only configured free-tier routes are tried before the OpenCode fallback. The
-gateway never substitutes an empty answer for a provider failure.
+The QA route mode uses OpenCode Go first and direct DeepSeek second. The
+default route mode retains the original free-tier ladder for other callers.
+The gateway never substitutes an empty answer for a provider failure.
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ ROUTES = (
 )
 VISION_ROUTES = (
     ("nvidia-vision", "NVIDIA_API_KEY", "https://integrate.api.nvidia.com/v1", "meta/llama-3.2-11b-vision-instruct"),
+    ("opencode-go-vision", "OPENCODE_API_KEY", "https://opencode.ai/zen/go/v1", "glm-5.3-flash"),
     ("deepseek", "DEEPSEEK_API_KEY", "https://api.deepseek.com", "deepseek-flash"),
 )
 LEDGER = Path(os.environ.get("CLOUD_EVAL_LEDGER", "cloud-eval-ledger.jsonl"))
@@ -39,6 +41,11 @@ ROUTE_DISABLED_UNTIL = {}
 
 def configured_routes(vision=False):
     source = VISION_ROUTES if vision else ROUTES
+    if os.environ.get("CLOUD_EVAL_ROUTE_MODE") == "go-primary":
+        preferred = ("opencode-go-vision", "deepseek") if vision else ("opencode-go", "deepseek")
+        source = tuple(route for route in source if route[0] in preferred)
+    elif vision:
+        source = tuple(route for route in source if route[0] != "opencode-go-vision")
     return [(name, os.environ[key], url, model) for name, key, url, model in source if os.environ.get(key)]
 
 
@@ -65,12 +72,12 @@ def chat(payload: dict, routes=None) -> dict:
         request_payload.pop("think", None)
         request_payload.pop("keep_alive", None)
         request_payload.pop("num_predict", None)
-        if name in ("opencode-go", "deepseek"):
+        if name.startswith("opencode-go") or name == "deepseek":
             request_payload.pop("temperature", None)
         if name == "nvidia":
             request_payload["chat_template_kwargs"] = {"enable_thinking": False}
         headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        if name == "opencode-go":
+        if name.startswith("opencode-go"):
             headers["x-opencode-session"] = f"cloud-eval-{os.environ.get('GITHUB_RUN_ID', os.getpid())}"
             headers["User-Agent"] = "PW-cloud-eval/1.0"
         request = urllib.request.Request(

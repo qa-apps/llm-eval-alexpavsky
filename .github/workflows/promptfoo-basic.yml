@@ -50,6 +50,7 @@ jobs:
       completion_ready: ${{ steps.completion_ready.outputs.ready }}
     env:
       CLOUD_EVAL_API_KEY: cloud-eval
+      CLOUD_EVAL_ROUTE_MODE: go-primary
       REQUEST_TIMEOUT_MS: '180000'
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}

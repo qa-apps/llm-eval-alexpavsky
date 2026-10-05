@@ -347,6 +347,7 @@ jobs:
     timeout-minutes: 20
     env:
       LOCAL_LLM_BASE_URL: http://127.0.0.1:18765/v1
+      CLOUD_EVAL_ROUTE_MODE: go-primary
       LOCAL_LLM_MODEL: cloud-eval
       LOCAL_LLM_UPSTREAM_MODEL: cloud-eval
       LOCAL_LLM_API_KEY: cloud-eval
