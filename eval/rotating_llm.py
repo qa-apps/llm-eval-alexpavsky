@@ -1,14 +1,4 @@
-"""
-rotating_llm.py — Local LangChain ChatModel for evaluation jobs.
-
-The evaluation stack uses the GPT-OSS model hosted by Ollama on the bosgame
-self-hosted runner. The provider list shape is retained so existing Ragas and
-Giskard integrations do not need a wider rewrite.
-
-All providers below expose an OpenAI-compatible chat-completions API, so a
-single LangChain ChatOpenAI client works for each one — only base_url, model,
-and api_key change per provider.
-"""
+"""Cloud LangChain judge for Ragas and Giskard evaluations."""
 from __future__ import annotations
 
 import logging
@@ -27,23 +17,30 @@ log = logging.getLogger("rotating-llm")
 
 
 def lifecycle_headers(model: str) -> dict[str, str]:
-    """Identify this local eval to Bosgame's background model scheduler."""
+    """Tag requests with the QA run for provider-side diagnostics."""
     return {
-        "X-LLM-Job-ID": os.environ.get("GITHUB_RUN_ID", "local-rag-eval"),
-        "X-LLM-Model": model,
+        "X-QA-Run-ID": os.environ.get("GITHUB_RUN_ID", "local-rag-eval"),
     }
 
 
-# Ollama exposes an OpenAI-compatible endpoint. CI runs on bosgame itself, so
-# localhost is both private and independent of external provider quotas.
 def build_provider_list() -> list[dict[str, str]]:
-    """Build the single local provider from environment variables."""
-    return [{
-        "name": "ollama",
-        "api_key": os.environ.get("LOCAL_LLM_API_KEY", "ollama"),
-        "base_url": os.environ.get("LOCAL_LLM_BASE_URL", "http://127.0.0.1:11434/v1").rstrip("/"),
-        "model": os.environ.get("LOCAL_LLM_MODEL", "gpt-oss:120b"),
-    }]
+    """Prefer DeepSeek; Together is an optional independent cloud fallback."""
+    providers: list[dict[str, str]] = []
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+    if deepseek_key:
+        providers.append({
+            "name": "deepseek", "api_key": deepseek_key,
+            "base_url": "https://api.deepseek.com/v1",
+            "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+        })
+    together_key = os.environ.get("TOGETHER_API_KEY", "").strip()
+    if together_key:
+        providers.append({
+            "name": "together", "api_key": together_key,
+            "base_url": "https://api.together.xyz/v1",
+            "model": os.environ.get("TOGETHER_MODEL", "deepseek-ai/DeepSeek-V4-Flash-0731"),
+        })
+    return providers
 
 
 # Errors that should trigger rotation (rate limit, quota, auth, etc.)
@@ -70,7 +67,7 @@ class RotatingJudgeLLM(BaseChatModel):
 
     providers: list[dict[str, str]] = Field(default_factory=list)
     temperature: float = 0.0
-    timeout: int = int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600"))
+    timeout: int = int(os.environ.get("JUDGE_TIMEOUT_SEC", "120"))
     max_retries: int = 1
     _last_used_idx: int = 0
 
@@ -87,7 +84,7 @@ class RotatingJudgeLLM(BaseChatModel):
 
     def _make_client(self, provider: dict[str, str]) -> ChatOpenAI:
         """Construct a fresh ChatOpenAI client for a provider."""
-        max_tokens = max(1, int(os.environ.get("LOCAL_LLM_MAX_TOKENS", "2048")))
+        max_tokens = max(1, int(os.environ.get("JUDGE_MAX_TOKENS", "4096")))
         return ChatOpenAI(
             model=provider["model"],
             base_url=provider["base_url"],
@@ -95,6 +92,7 @@ class RotatingJudgeLLM(BaseChatModel):
             default_headers=lifecycle_headers(provider["model"]),
             temperature=self.temperature,
             max_tokens=max_tokens,
+            extra_body={"reasoning_effort": "low"} if provider["name"] == "deepseek" else {},
             timeout=self.timeout,
             max_retries=self.max_retries,
         )
@@ -119,7 +117,7 @@ class RotatingJudgeLLM(BaseChatModel):
         for offset in range(n):
             idx = (self._last_used_idx + offset) % n
             provider = self.providers[idx]
-            priority_wait = max(0, int(os.environ.get("LOCAL_LLM_PRIORITY_MAX_WAIT_SEC", "0")))
+            priority_wait = max(0, int(os.environ.get("JUDGE_RETRY_WAIT_SEC", "0")))
             deadline = time.monotonic() + priority_wait
             while True:
                 try:
@@ -130,10 +128,9 @@ class RotatingJudgeLLM(BaseChatModel):
                 except Exception as e:
                     text = str(e).lower()
                     interrupted = any(pattern in text for pattern in PRIORITY_INTERRUPTION_PATTERNS)
-                    local_busy = n == 1 and self._should_rotate(e)
-                    if (interrupted or local_busy) and time.monotonic() < deadline:
+                    if interrupted and time.monotonic() < deadline:
                         log.info(
-                            "Local judge is busy or still finishing an earlier request; "
+                            "Judge provider is temporarily unavailable; "
                             "retrying in 10 seconds"
                         )
                         time.sleep(min(10.0, max(0.0, deadline - time.monotonic())))
@@ -162,70 +159,39 @@ class RotatingJudgeLLM(BaseChatModel):
         return await asyncio.to_thread(self._generate, messages, stop, None, **kwargs)
 
 
-# Map our provider name to LiteLLM's Ollama model id format.
-def _litellm_model_id(provider: dict[str, str]) -> Optional[str]:
-    name = provider["name"]
-    model = provider["model"]
-    if name == "ollama":
-        return f"ollama/{model}"
-    return None
-
-
 def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
-    """Point Giskard's text judge and embeddings at local Ollama models."""
+    """Use the cloud judge and a small CPU embedding model on the CI runner."""
     import giskard
     import numpy as np
     import openai
-    import requests
     from giskard.llm.client.openai import OpenAIClient
     from giskard.llm.embeddings import BaseEmbedding, set_default_embedding
+    from sentence_transformers import SentenceTransformer
 
     provider = providers[0]
-    ollama_root = provider["base_url"].removesuffix("/v1")
-    embedding_root = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/") or ollama_root
-    os.environ["OLLAMA_API_BASE"] = ollama_root
-    os.environ["OLLAMA_BASE_URL"] = ollama_root
-    os.environ["LITELLM_REQUEST_TIMEOUT"] = os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")
-
-    litellm_ids = [m for m in (_litellm_model_id(p) for p in providers) if m]
-    if not litellm_ids:
-        raise RuntimeError("No provider in list maps to a LiteLLM-supported id")
-
-    primary = litellm_ids[0]
-    # The native OpenAI-compatible client preserves JSON response mode more
-    # reliably than Giskard's LiteLLM adapter for GPT-OSS on Ollama.
+    embedding_model = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    embedder = SentenceTransformer(embedding_model)
     openai_client = openai.OpenAI(
         base_url=provider["base_url"],
         api_key=provider["api_key"],
         default_headers=lifecycle_headers(provider["model"]),
-        timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
-        max_retries=8,
+        timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
+        max_retries=2,
     )
     giskard.llm.set_default_client(
         OpenAIClient(model=provider["model"], client=openai_client, json_mode=True)
     )
     log_fn(f"  Judge: {provider['model']} via {provider['base_url']}")
 
-    embedding_model = os.environ.get("LOCAL_EMBEDDING_MODEL", "qwen3-embedding:4b")
-
-    class OllamaOpenAIEmbedding(BaseEmbedding):
+    class CpuEmbedding(BaseEmbedding):
         def embed(self, texts):
-            response = requests.post(
-                f"{embedding_root}/api/embed",
-                headers={
-                    "Authorization": f"Bearer {provider['api_key']}",
-                    **lifecycle_headers(embedding_model),
-                },
-                json={"model": embedding_model, "input": list(texts), "keep_alive": -1},
-                timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
-            )
-            response.raise_for_status()
-            return np.asarray(response.json()["embeddings"], dtype=np.float32)
+            vectors = embedder.encode(list(texts), normalize_embeddings=True)
+            return np.asarray(vectors, dtype=np.float32)
 
     # Giskard 2.16 resets a custom default when no model name is registered.
     # Register a marker first, then install the direct adapter it will reuse.
-    giskard.llm.set_embedding_model(f"local/{embedding_model}")
-    set_default_embedding(OllamaOpenAIEmbedding())
-    log_fn(f"  Embeddings: {embedding_model} via {embedding_root}/api/embed")
+    giskard.llm.set_embedding_model(f"cpu/{embedding_model}")
+    set_default_embedding(CpuEmbedding())
+    log_fn(f"  Embeddings: {embedding_model} on CI CPU")
 
-    return f"local/{provider['model']}"
+    return f"{provider['name']}/{provider['model']}"

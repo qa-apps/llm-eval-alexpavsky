@@ -391,7 +391,7 @@ Produce the JSON incident report described in the system prompt."""
         result = llm_client.chat(
             messages=[{"role": "user", "content": prompt}],
             system=REPORT_SYSTEM_PROMPT,
-            max_tokens=1024,
+            max_tokens=4096,
             temperature=0.2,
             timeout=AGENT_LLM_TIMEOUT,
         )

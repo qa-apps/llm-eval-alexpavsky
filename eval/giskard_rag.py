@@ -10,7 +10,7 @@ Differs from ragas_eval.py in two ways:
     for the nightly, big enough to cover several question types.
 
 Reads from the live RAG API (alexpavsky.com or env override). Uses the
-same local GPT-OSS judge as Ragas. Besides the aggregate summary, every
+same cloud judge as Ragas. Besides the aggregate summary, every
 question is written to results/giskard_rag_cases.json with its PASS/FAIL
 verdict and the judge's reason, so the Pages report can show each one.
 """
@@ -32,11 +32,10 @@ RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 
-def local_llm_headers(model: str, api_key: str) -> dict[str, str]:
+def judge_headers(model: str, api_key: str) -> dict[str, str]:
     return {
         "Authorization": f"Bearer {api_key}",
-        "X-LLM-Job-ID": os.environ.get("GITHUB_RUN_ID", "local-giskard-eval"),
-        "X-LLM-Model": model,
+        "X-QA-Run-ID": os.environ.get("GITHUB_RUN_ID", "giskard-eval"),
     }
 
 
@@ -83,7 +82,7 @@ def query_rag(question: str) -> str:
 
 
 class PermissiveCorrectnessMetric:
-    """Giskard-compatible correctness metric with a stable local JSON contract."""
+    """Giskard-compatible correctness metric with a stable JSON contract."""
 
     name = "correctness"
 
@@ -93,16 +92,13 @@ class PermissiveCorrectnessMetric:
     def __call__(self, question_sample, answer) -> dict:
         response = requests.post(
             f"{self.provider['base_url']}/chat/completions",
-            headers=local_llm_headers(
+            headers=judge_headers(
                 self.provider["model"], self.provider["api_key"]
             ),
             json={
                 "model": self.provider["model"],
                 "temperature": 0,
-                # GPT-OSS reasons before answering; 512 tokens could end with
-                # empty content, so give it room and keep reasoning short.
-                "max_tokens": int(os.environ.get("LOCAL_LLM_MAX_TOKENS", "2048")),
-                "reasoning_effort": os.environ.get("LOCAL_LLM_REASONING_EFFORT", "low"),
+                "max_tokens": int(os.environ.get("JUDGE_MAX_TOKENS", "2048")),
                 "response_format": {"type": "json_object"},
                 "messages": [
                     {
@@ -128,7 +124,7 @@ class PermissiveCorrectnessMetric:
                     },
                 ],
             },
-            timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
+            timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
         )
         response.raise_for_status()
         payload = response.json()
@@ -203,12 +199,12 @@ def main() -> None:
     except ImportError as e:
         fail(f"Missing dependency: {e}. Run: pip install -r eval/requirements.txt")
 
-    # Use the same local judge as Ragas — Giskard needs an OpenAI-compatible
+    # Use the same cloud judge as Ragas — Giskard needs an OpenAI-compatible
     # client for both question generation and answer evaluation.
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Local GPT-OSS judge is not configured.")
+        fail("Cloud judge is not configured. Set DEEPSEEK_API_KEY or TOGETHER_API_KEY.")
 
     from rotating_llm import configure_giskard
     primary_label = configure_giskard(providers, log)

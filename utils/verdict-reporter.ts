@@ -92,6 +92,7 @@ export function writeVerdictReport(
     titlePath: [testTitle],
     judgeName,
     judge: cfg.name,
+    judgeModel: verdict.judgeModel,
     criteria: cfg.criteria,
     score: verdict.score,
     maxScore: 5,
@@ -107,6 +108,7 @@ export function writeVerdictReport(
 ## ${testTitle}
 
 **Judge:** ${cfg.name} (${judgeName})
+**Model:** ${verdict.judgeModel || 'unknown'}
 **Score:** ${verdict.score}/5
 **Result:** ${verdict.passed ? 'PASS' : 'FAIL'}
 

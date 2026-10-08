@@ -57,32 +57,16 @@ jobs:
   evaluate:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    timeout-minutes: 480
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
     outputs:
       eval_date: ${{ steps.eval_day.outputs.date }}
       completion_ready: ${{ steps.completion_gate.outputs.ready }}
     env:
-      # Readiness and inference use the same background endpoint. The generic
-      # catalog port belongs to interactive Ollama and is offline while the
-      # lifecycle controller has switched VRAM to this background service.
-      LLM_CATALOG_URL: http://127.0.0.1:11445
-      OLLAMA_BASE_URL: http://127.0.0.1:11445
-      LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1
-      LOCAL_LLM_MODEL: gpt-oss:120b
-      LOCAL_LLM_UPSTREAM_MODEL: gpt-oss:120b
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-      # Manual runs need a recovery window too: a previous eval may still be
-      # releasing or switching the local model when this workflow starts.
-      LOCAL_LLM_PRIORITY_MAX_WAIT_SEC: ${{ github.event_name == 'schedule' && '21600' || '3600' }}
-      LOCAL_EMBEDDING_MODEL: qwen3-embedding:4b
-      # GPT-OSS 120B can need more than three minutes for Giskard's large
-      # topic-generation and detector prompts. Keep this local-only path
-      # patient instead of treating a still-running inference as a failure.
-      LOCAL_LLM_TIMEOUT_SEC: '600'
-      LOCAL_LLM_TIMEOUT_MS: '600000'
-      LOCAL_LLM_MAX_TOKENS: '2048'
-      LOCAL_LLM_REASONING_EFFORT: low
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      JUDGE_TIMEOUT_SEC: '120'
+      JUDGE_MAX_TOKENS: '4096'
+      EMBEDDING_MODEL: sentence-transformers/all-MiniLM-L6-v2
 
     steps:
       - name: Checkout
@@ -107,79 +91,17 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/ragas-giskard.done
-          key: bosgame-ragas-giskard-${{ steps.eval_day.outputs.date }}
+          key: cloud-ragas-giskard-v1-${{ steps.eval_day.outputs.date }}
 
-      - name: Check local models
-        id: local_llm
+      - name: Check DeepSeek judge availability
+        id: cloud_judge
         if: steps.daily_marker.outputs.cache-hit != 'true'
-        shell: bash
         run: |
-          # Since 2026-09-14 the gateway answers 401 without a key; send the runner-provided one.
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          AUTH="Authorization: Bearer ${LOCAL_LLM_API_KEY}"
-          ready=false
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
-          while true; do
-            # The catalog lists the upstream id; the scheduled alias may be routed without being listed.
-            if models=$(curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-                -H "$AUTH" -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-                "$LLM_CATALOG_URL/v1/models") && \
-               python3 -c 'import json,sys; wanted=[w for w in sys.argv[1:] if w]; ids=[m.get("id") for m in json.load(sys.stdin).get("data", [])]; ok=any(w in ids for w in wanted); ok or print(f"::warning::None of {wanted} is listed by the model catalog; available: {ids}"); raise SystemExit(0 if ok else 1)' "$LOCAL_LLM_MODEL" "$LOCAL_LLM_UPSTREAM_MODEL" <<<"$models" && \
-               tags=$(curl --connect-timeout 5 --max-time 30 --fail --silent --show-error -H "$AUTH" -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_EMBEDDING_MODEL" "$OLLAMA_BASE_URL/api/tags") && \
-               python3 -c 'import json,sys; wanted=sys.argv[1]; names=[m.get("name") for m in json.load(sys.stdin).get("models", [])]; ok=wanted in names; ok or print(f"::warning::{wanted} is not listed by {sys.argv[2]}/api/tags; available: {names}"); raise SystemExit(0 if ok else 1)' "$LOCAL_EMBEDDING_MODEL" "$OLLAMA_BASE_URL" <<<"$tags"; then
-              ready=true
-              break
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              break
-            fi
-            echo "Local model gateway is busy or transitioning; retrying availability check in 10s."
-            sleep 10
-          done
-          if [ "$ready" = true ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Local judge or embedding model unavailable (reason above); the next hourly schedule will retry."
-          fi
-
-      - name: Nightly Bosgame — report unavailable
-        if: steps.daily_marker.outputs.cache-hit != 'true' && steps.local_llm.outputs.run != 'true'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Ragas + Giskard" --event down
-
-      - name: Nightly Bosgame — report available
-        if: steps.local_llm.outputs.run == 'true'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Ragas + Giskard" --event up
-
-      - name: Warm up local models (up to 2 min)
-        if: steps.local_llm.outputs.run == 'true'
-        shell: bash
-        run: |
-          echo "Warming $LOCAL_LLM_UPSTREAM_MODEL + $LOCAL_EMBEDDING_MODEL…"
-          curl -s --max-time 150 "$OLLAMA_BASE_URL/api/generate" \
-            -H "Authorization: Bearer ${LOCAL_LLM_API_KEY}" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-            -d "{\"model\":\"$LOCAL_LLM_UPSTREAM_MODEL\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":-1,\"options\":{\"num_predict\":1}}" \
-            >/dev/null || echo "warm-up request timed out (continuing anyway)"
-          if [ -n "${LOCAL_EMBEDDING_MODEL:-}" ]; then
-            curl -s --max-time 60 "$OLLAMA_BASE_URL/api/embed" \
-              -H "Authorization: Bearer ${LOCAL_LLM_API_KEY}" \
-              -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_EMBEDDING_MODEL" \
-              -d "{\"model\":\"$LOCAL_EMBEDDING_MODEL\",\"input\":\"ok\",\"keep_alive\":-1}" >/dev/null || true
-          fi
+          python3 .github/scripts/check_cloud_judge.py
+          echo "run=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout existing gh-pages site (if any)
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: gh-pages
@@ -187,7 +109,7 @@ jobs:
         continue-on-error: true
 
       - name: Set up Python 3.11
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
         with:
           python-version: '3.11'
@@ -195,20 +117,20 @@ jobs:
           cache-dependency-path: 'eval/requirements.txt'
 
       - name: Install Ragas + LangChain
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r eval/requirements.txt
 
       - name: Record Ragas and Giskard run start
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         run: python3 -c 'import os,time; from pathlib import Path; Path(os.environ["RUNNER_TEMP"]).joinpath("ragas-giskard-start-ns").write_text(str(time.time_ns()))'
 
       - name: Run Ragas evaluation
         id: ragas_eval
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         env:
-          # GPT-OSS 120B judge and local embeddings are supplied by bosgame.
+          # DeepSeek judges; small embeddings run on the CI CPU.
           # RAG API endpoint (production)
           RAG_API_URL: ${{ inputs.rag_api_url || 'https://alexpavsky.com' }}
           # Quality gates
@@ -223,7 +145,7 @@ jobs:
 
       - name: Run Giskard RAG eval (auto-generated questions)
         id: giskard_eval
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         working-directory: eval
         env:
           RAG_API_URL: ${{ inputs.rag_api_url || 'https://alexpavsky.com' }}
@@ -234,7 +156,7 @@ jobs:
 
       - name: Run Giskard vulnerability scan (5 categories)
         id: giskard_scan
-        if: ${{ always() && steps.local_llm.outputs.run == 'true' && (github.event_name == 'schedule' || inputs.run_giskard_scan == true || inputs.run_giskard_scan == 'true') }}
+        if: ${{ always() && steps.cloud_judge.outputs.run == 'true' && (github.event_name == 'schedule' || inputs.run_giskard_scan == true || inputs.run_giskard_scan == 'true') }}
         working-directory: eval
         env:
           RAG_API_URL: ${{ inputs.rag_api_url || 'https://alexpavsky.com' }}
@@ -245,7 +167,7 @@ jobs:
 
       - name: Validate complete eval reports
         id: report_contract
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           EXPECTED_RAGAS_CASES: ${{ inputs.max_questions || '10' }}
           EXPECTED_GISKARD_CASES: ${{ inputs.giskard_num_questions || '5' }}
@@ -322,7 +244,7 @@ jobs:
 
       - name: Upload eval reports
         id: upload_reports
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: eval-reports-${{ github.run_number }}
@@ -340,7 +262,7 @@ jobs:
 
       - name: Build GitHub Pages site
         id: build_pages
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
         env:
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ID: ${{ github.run_id }}
@@ -351,7 +273,7 @@ jobs:
 
       - name: Upload Pages site for isolated publisher
         id: upload_pages
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success' && steps.build_pages.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success' && steps.build_pages.outcome == 'success'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: eval-pages-${{ github.run_id }}
@@ -360,7 +282,7 @@ jobs:
           if-no-files-found: error
 
       - name: Post summary to job
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           REPO_NAME: ${{ github.event.repository.name }}
           REPO_OWNER: ${{ github.repository_owner }}
@@ -393,7 +315,7 @@ jobs:
 
       - name: Notify Slack
         id: notify_ragas
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -424,7 +346,7 @@ jobs:
 
       - name: Notify Giskard Slack
         id: notify_giskard
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -442,7 +364,7 @@ jobs:
             --require-delivery
 
       - name: Send failure email (severity-tagged)
-        if: failure() && steps.local_llm.outputs.run == 'true'
+        if: failure() && steps.cloud_judge.outputs.run == 'true'
         env:
           MAIL_TO: ${{ secrets.MAIL_TO }}
           MAIL_SERVER: ${{ secrets.MAIL_SERVER }}
@@ -462,7 +384,7 @@ jobs:
             --run-url "$RUN_URL"
 
       - name: Post bug report to Slack
-        if: failure() && steps.local_llm.outputs.run == 'true'
+        if: failure() && steps.cloud_judge.outputs.run == 'true'
         env:
           SLACK_BOT_TOKEN:    ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_RUN_URL:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -479,21 +401,9 @@ jobs:
             --pipeline "RAG Eval Nightly" \
             --results-dir eval/results
 
-      - name: Nightly Bosgame — post results
-        id: notify_daily
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "Ragas + Giskard" --event result --format none \
-            --require-delivery
-
       - name: Evaluate daily completion gate
         id: completion_gate
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           REPORT_CONTRACT: ${{ steps.report_contract.outcome }}
           REPORT_UPLOAD: ${{ steps.upload_reports.outcome }}
@@ -501,14 +411,13 @@ jobs:
           PAGES_UPLOAD: ${{ steps.upload_pages.outcome }}
           RAGAS_SLACK: ${{ steps.notify_ragas.outcome }}
           GISKARD_SLACK: ${{ steps.notify_giskard.outcome }}
-          DAILY_SLACK: ${{ steps.notify_daily.outcome }}
           RAGAS_EVAL: ${{ steps.ragas_eval.outcome }}
           GISKARD_EVAL: ${{ steps.giskard_eval.outcome }}
           GISKARD_SCAN: ${{ steps.giskard_scan.outcome }}
           REQUIRE_SCAN: ${{ github.event_name == 'schedule' || inputs.run_giskard_scan == true || inputs.run_giskard_scan == 'true' }}
         run: |
           ready=true
-          for outcome in "$REPORT_CONTRACT" "$REPORT_UPLOAD" "$PAGES_BUILD" "$PAGES_UPLOAD" "$RAGAS_SLACK" "$GISKARD_SLACK" "$DAILY_SLACK"; do
+          for outcome in "$REPORT_CONTRACT" "$REPORT_UPLOAD" "$PAGES_BUILD" "$PAGES_UPLOAD" "$RAGAS_SLACK" "$GISKARD_SLACK"; do
             [ "$outcome" = "success" ] || ready=false
           done
           for outcome in "$RAGAS_EVAL" "$GISKARD_EVAL"; do
@@ -521,13 +430,6 @@ jobs:
           fi
           echo "ready=$ready" >> "$GITHUB_OUTPUT"
           [ "$ready" = "true" ] || echo "::warning::Daily marker withheld because an eval did not run or reports, Pages input, or Slack delivery was incomplete."
-
-      - name: Release background model lease
-        if: always() && github.event_name == 'schedule'
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background || true
 
   publish-eval-pages:
     name: Publish Pages from GitHub-hosted runner
@@ -584,4 +486,4 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/ragas-giskard.done
-          key: bosgame-ragas-giskard-${{ needs.evaluate.outputs.eval_date }}
+          key: cloud-ragas-giskard-v1-${{ needs.evaluate.outputs.eval_date }}

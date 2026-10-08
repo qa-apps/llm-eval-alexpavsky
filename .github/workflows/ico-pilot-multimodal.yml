@@ -3,7 +3,7 @@ name: I-Copilot Multimodal Report
 on:
   workflow_dispatch:
   schedule:
-    # The hosted eval starts at 02:40 and may wait behind a Bosgame model.
+    # The hosted eval starts at 02:40; post its completed report at 09:00.
     # Publish its detailed Slack report at 09:00 America/New_York.
     - cron: '0 13 * * *'
     - cron: '0 14 * * *'
@@ -48,6 +48,9 @@ jobs:
       - name: Post every multimodal case to Slack
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          ICO_PILOT_REPORT_BASE_URL: ${{ vars.ICO_PILOT_REPORT_BASE_URL }}
         run: |
+          : "${ICO_PILOT_REPORT_BASE_URL:?ICO_PILOT_REPORT_BASE_URL repository variable is required}"
           python3 .github/scripts/notify_icopilot_multimodal_slack.py \
+            --url "${ICO_PILOT_REPORT_BASE_URL%/}/ico-pilot-multimodal-latest.json" \
             --channel "${{ vars.SLACK_ICO_PILOT_CHANNEL_ID || 'C0C1FRGJB1Q' }}"

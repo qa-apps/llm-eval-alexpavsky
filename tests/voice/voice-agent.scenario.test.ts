@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import scenario from "@langwatch/scenario";
 import { voiceAgent, SAY_URL } from "../support/voiceAgentAdapter";
-import { judgeModel, hasJudgeModel, strictLocalJudge } from "../support/scenarioModel";
+import { judgeModel, hasJudgeModel, strictCloudJudge } from "../support/scenarioModel";
 
 /**
  * LangWatch Scenario check for Alex Pavlovsky's AI voice assistant.
@@ -32,7 +32,7 @@ if (!hasJudgeModel()) {
   // eslint-disable-next-line no-console
   console.warn(
     "[voice scenario] skipped: no evaluator LLM key " +
-      "(set LOCAL_LLM_BASE_URL).",
+      "(set DEEPSEEK_API_KEY).",
   );
 }
 
@@ -48,7 +48,7 @@ describeVoice("voice assistant — LangWatch Scenario", () => {
       agents: [
         voiceAgent(),
         scenario.userSimulatorAgent({ model }),
-        strictLocalJudge(criteria),
+        strictCloudJudge(criteria),
       ],
       script: [
         scenario.user(

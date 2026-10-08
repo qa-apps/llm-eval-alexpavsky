@@ -418,7 +418,7 @@ def giskard_index_html(history: list[dict]) -> str:
 <body>
 <nav><a href="index.html">← Ragas runs</a></nav>
 <h1>Giskard Nightly</h1>
-<p class="meta">Auto-generated RAG questions judged by the local GPT-OSS model, plus the vulnerability scan. Runs: {len(rows)}</p>
+<p class="meta">Auto-generated RAG questions judged by DeepSeek cloud, plus the vulnerability scan. Runs: {len(rows)}</p>
 <table>
   <thead><tr><th>Run</th><th>Timestamp (UTC)</th><th>Questions passed</th><th>Correctness</th><th>Scan issues</th><th>Commit</th></tr></thead>
   <tbody>{''.join(body_rows) or '<tr><td colspan="6">No Giskard runs yet.</td></tr>'}</tbody>

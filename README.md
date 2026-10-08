@@ -16,7 +16,7 @@ The application source of truth lives in the separate site repo:
 | RAG evaluation | `eval/ragas_eval.py`, `eval/giskard_rag.py`, `tests/rag/golden_questions.json` | Ragas, Giskard, a golden question set |
 | Automated red teaming | `eval/giskard_scan.py`, `tests/llmRedTeaming.spec.ts` | Giskard scan |
 | Security | `tests/securityVulnerability.spec.ts`, `security-ssrf-xss.spec.ts`, `apiTokenSecurity.spec.ts`, `security-daily.spec.ts` | Playwright |
-| Voice AI | `tests/voice/` | Vitest, LangWatch Scenario, a strict local judge |
+| Voice AI | `tests/voice/` | Vitest, LangWatch Scenario, a DeepSeek cloud judge |
 | Tracing | `tests/observability/langfuse-agent-tracking.test.ts` | Langfuse |
 | Deterministic checks | `tests/regex/pattern-llm.spec.ts` | Regex assertions over model output |
 | E2E, API and UI | 32 specs at `tests/` | Playwright |
@@ -44,8 +44,9 @@ npm run eval:basic    # 10 essential probes
 npm run eval:view
 ```
 
-Providers are resolved through a rotating pool; `npm run providers:refresh` and
-`npm run providers:ping` maintain it.
+Promptfoo is pinned to `deepseek:deepseek-v4-pro`. Set `DEEPSEEK_API_KEY` before
+running evaluations. `npm run providers:refresh` validates both pinned configs;
+`npm run providers:ping` checks the live judge with one small request.
 
 ## RAG and red-team evaluation
 
@@ -89,9 +90,9 @@ Required repository secret for Slack notifications:
 
 - `SLACK_WEBHOOK_URL`
 
-Optional repository secrets for live LLM judge runs:
+Repository secrets for live LLM judge runs:
 
-- `GROQ_API_KEY`
+- `DEEPSEEK_API_KEY`
 - `GEMINI_API_KEY`
 
 Nightly schedules use two UTC cron entries and a New York time gate so they stay

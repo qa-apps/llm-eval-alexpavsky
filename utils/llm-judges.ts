@@ -5,6 +5,7 @@ export interface JudgeVerdict {
   passed: boolean;
   score: number;
   reasoning: string;
+  judgeModel?: string;
 }
 
 export interface JudgeConfig {
@@ -327,14 +328,8 @@ async function judgeResponse(
           ],
           temperature: 0,
           response_format: { type: 'json_object' },
-          // Bound local output so the JSON verdict is not cut off. Only
-          // GPT-OSS accepts the OpenAI reasoning_effort extension.
-          ...(providerName === 'ollama' ? {
-            max_tokens: Number(process.env.LOCAL_LLM_MAX_TOKENS || 1024),
-            ...(model.includes('gpt-oss') ? {
-              reasoning_effort: process.env.LOCAL_LLM_REASONING_EFFORT || 'low',
-            } : {}),
-          } : {}),
+          max_tokens: Number(process.env.JUDGE_MAX_TOKENS || 4096),
+          ...(providerName === 'deepseek' ? { reasoning_effort: 'low' } : {}),
         },
         providerName,
         model,
@@ -351,6 +346,7 @@ async function judgeResponse(
       return {
         passed: score >= PASSING_SCORE,
         score,
+        judgeModel: `${providerName}:${model}`,
         reasoning: typeof result.reasoning === 'string' && result.reasoning.trim()
           ? result.reasoning
           : 'No reasoning provided.',

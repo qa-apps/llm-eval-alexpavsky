@@ -96,6 +96,8 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
     verdict = str(step.get("verdict") or "unknown").upper()
     marker = ":white_check_mark:" if verdict == "PASSED" else ":x:"
     image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
+    fallback_reason = step.get("llm_fallback_reason") or ""
+    fallback_line = f"*Fallback:* {slack_text(fallback_reason, 150)}\n" if fallback_reason else ""
     blocks = [
         {
             "type": "header",
@@ -106,7 +108,7 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"{marker} *Required browser journey + local Vision review*\n"
+                    f"{marker} *Required browser journey + Vision review*\n"
                     f"*Case:* {slack_text(step.get('test_case_name') or case_id)}\n"
                     f"*Page:* {slack_text(step.get('title') or step.get('url'))}\n"
                     f"*URL:* {slack_text(step.get('url'))}"
@@ -119,7 +121,8 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
                 {"type": "mrkdwn", "text": f"*Objective*\n{slack_text(step.get('objective'))}"},
                 {"type": "mrkdwn", "text": f"*Expected*\n{slack_text(step.get('expected_result'))}"},
                 {"type": "mrkdwn", "text": f"*Actual*\n{slack_text(step.get('actual_result'))}"},
-                {"type": "mrkdwn", "text": f"*Local model latency*\n{step.get('model_latency_ms', 0)} ms"},
+                {"type": "mrkdwn", "text": f"*Model latency*\n{step.get('model_latency_ms', 0)} ms"},
+                {"type": "mrkdwn", "text": f"*Vision model*\n{slack_text(step.get('llm_model') or 'unknown', 100)}"},
             ],
         },
         {
@@ -127,7 +130,9 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*Local Vision analysis*\n{slack_text(step.get('summary'))}\n\n"
+                    f"*{slack_text(step.get('llm_provider') or 'Vision', 80)} analysis*\n"
+                    f"{slack_text(step.get('summary'))}\n\n"
+                    f"{fallback_line}"
                     f"*Browser action:* `{slack_text(selected, 250)}`\n"
                     f"*Checks:* {slack_text(checks or 'No completed assertions')}\n"
                     f"*Deterministic result:* `{slack_text(actual, 80)}`\n\n"
@@ -201,6 +206,11 @@ def main() -> int:
     run_url = os.environ.get("GITHUB_RUN_URL", "")
     usage = report.get("model_usage") or {}
     provenance = report.get("model_provenance") or {}
+    provider_calls = ", ".join(
+        f"{provider}: {count}"
+        for provider, count in (provenance.get("provider_calls") or {}).items()
+        if count
+    ) or "none"
     run_link = f"<{run_url}|Open GitHub run>" if run_url else ""
     dashboard_link = f"<{dashboard_url}|Open full Daily Audit UI>" if dashboard_url else ""
     meaning = (
@@ -212,13 +222,15 @@ def main() -> int:
         f"{marker} *AlexPavsky Daily Audit - {status.upper()}*\n"
         f"_{meaning}_\n"
         f"*Model:* `{report.get('model', 'unknown')}`\n"
-        f"*Audit evaluator:* `{provenance.get('execution', 'local-only')}` via "
-        f"`{provenance.get('provider', 'Ollama')}` at `{provenance.get('endpoint', 'local endpoint')}`\n"
+        f"*Audit evaluator:* `{provenance.get('execution', 'unknown')}` via "
+        f"`{provenance.get('provider', 'unknown')}` at `{provenance.get('endpoint', 'unknown')}`\n"
         f"*Cloud evaluator calls:* *{provenance.get('cloud_llm_calls', 0)}*\n"
+        f"*Cloud API requests:* {provenance.get('cloud_api_requests', 0)} "
+        f"({provider_calls} successful decisions)\n"
         "_Production AI Chat, Voice, and Challenge may use their own configured providers._\n"
         f"*Coverage:* {len(steps)} documented journeys, "
         f"{len(report.get('pages_observed') or [])} unique URLs\n"
-        f"*Vision usage:* {usage.get('calls', 0)} local calls, "
+        f"*Vision usage:* {usage.get('calls', 0)} calls, "
         f"{usage.get('prompt_tokens', 0)} input tokens, "
         f"{usage.get('completion_tokens', 0)} output tokens\n"
         f"*Candidate observations:* {len(report.get('candidate_findings') or [])} "

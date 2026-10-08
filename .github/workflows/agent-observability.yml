@@ -343,15 +343,10 @@ jobs:
     name: Voice Scenario (LangWatch) + chat traces (Langfuse)
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true' && (github.event_name != 'workflow_dispatch' || inputs.review_sha == '')
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    # Scheduled runs may wait behind an interactive GPU lease. Keep the wait
-    # below the six-hour GitHub job cap so the actual checks still have time.
-    timeout-minutes: 360
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
     env:
-      LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1
-      LOCAL_LLM_MODEL: gpt-oss:120b
-      LOCAL_LLM_UPSTREAM_MODEL: gpt-oss:120b
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     outputs:
       voice: ${{ steps.voice.outcome }}
       langfuse: ${{ steps.langfuse.outcome }}
@@ -371,38 +366,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for local evaluator
-        id: local_evaluator
-        env:
-          LOCAL_LLM_PRIORITY_MAX_WAIT_SEC: ${{ github.event_name == 'schedule' && '18000' || '3600' }}
-        run: |
-          echo "lease_acquired=false" >> "$GITHUB_OUTPUT"
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
-          while true; do
-            if models=$(curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-              -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-              -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-              -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-              "${LOCAL_LLM_BASE_URL%/v1}/v1/models") && \
-              python3 -c 'import json,sys; wanted=sys.argv[1]; ids=[m.get("id") for m in json.load(sys.stdin).get("data", [])]; raise SystemExit(0 if wanted in ids or "gpt-oss:120b" in ids else 1)' "$LOCAL_LLM_MODEL" <<<"$models"; then
-              echo "lease_acquired=true" >> "$GITHUB_OUTPUT"
-              break
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Local Scenario evaluator is unavailable."
-              exit 1
-            fi
-            echo "Local model gateway is busy; retrying in 10s."
-            sleep 10
-          done
-
-          curl --fail --silent --show-error --max-time 180 \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "Content-Type: application/json" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-            "$LOCAL_LLM_BASE_URL/chat/completions" \
-            -d "{\"model\":\"$LOCAL_LLM_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply ready\"}],\"max_tokens\":8,\"stream\":false}" >/dev/null
+      - name: Check DeepSeek judge availability
+        run: python3 .github/scripts/check_cloud_judge.py
 
       - name: Detect backend keys
         id: keys
@@ -423,8 +388,8 @@ jobs:
           LANGWATCH_API_KEY: ${{ secrets.LANGWATCH_API_KEY }}
           LANGWATCH_ENDPOINT: ${{ vars.LANGWATCH_ENDPOINT || 'https://app.langwatch.ai' }}
           SCENARIO_BATCH_RUN_ID: gh-${{ github.run_id }}
-          SCENARIO_JUDGE_PROVIDER: local
-          SCENARIO_JUDGE_MODEL: ${{ env.LOCAL_LLM_MODEL }}
+          SCENARIO_JUDGE_PROVIDER: deepseek
+          SCENARIO_JUDGE_MODEL: deepseek-v4-pro
         run: npx vitest run tests/voice
 
       - name: Chat agent → Langfuse trace check
@@ -435,13 +400,6 @@ jobs:
           LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
           LANGFUSE_HOST: ${{ vars.LANGFUSE_HOST || 'https://us.cloud.langfuse.com' }}
         run: npx vitest run tests/observability
-
-      - name: Release background model lease
-        if: always() && steps.local_evaluator.outputs.lease_acquired == 'true'
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background || true
 
   slack-observability:
     needs: agent-checks

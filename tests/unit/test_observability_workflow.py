@@ -9,26 +9,25 @@ class ObservabilityWorkflowTests(unittest.TestCase):
             ".github/workflows/agent-observability.yml"
         ).read_text(encoding="utf-8")
 
-    def test_manual_and_scheduled_runs_use_the_lifecycle_gateway(self):
-        self.assertIn("LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1", self.workflow)
-        self.assertIn("LOCAL_LLM_MODEL: gpt-oss:120b", self.workflow)
-        self.assertNotIn("scheduled/gpt-oss:120b", self.workflow)
-        self.assertNotIn("http://127.0.0.1:11434/v1", self.workflow)
+    def test_manual_and_scheduled_runs_use_cloud_judge(self):
+        self.assertIn("runs-on: ubuntu-latest", self.workflow)
+        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}", self.workflow)
+        self.assertIn("SCENARIO_JUDGE_PROVIDER: deepseek", self.workflow)
+        self.assertIn("SCENARIO_JUDGE_MODEL: deepseek-v4-pro", self.workflow)
+        self.assertNotIn("LOCAL_LLM_BASE_URL", self.workflow)
 
-    def test_job_timeout_exceeds_the_longest_model_wait(self):
-        self.assertIn("timeout-minutes: 360", self.workflow)
-        self.assertIn("github.event_name == 'schedule' && '18000' || '3600'", self.workflow)
+    def test_job_has_bounded_timeout(self):
+        self.assertIn("timeout-minutes: 90", self.workflow)
 
-    def test_only_a_run_that_acquired_a_lease_releases_it(self):
-        wait = self.workflow.split("- name: Wait for local evaluator", 1)[1]
-        self.assertIn("id: local_evaluator", wait)
-        self.assertIn('echo "lease_acquired=true" >> "$GITHUB_OUTPUT"', wait)
-        release = self.workflow.split("- name: Release background model lease", 1)[1]
-        self.assertIn(
-            "if: always() && steps.local_evaluator.outputs.lease_acquired == 'true'",
-            release,
-        )
-        self.assertIn("/release/background", release)
+    def test_cloud_preflight_replaces_local_model_lease(self):
+        self.assertIn("python3 .github/scripts/check_cloud_judge.py", self.workflow)
+        self.assertNotIn("/release/background", self.workflow)
+
+    def test_active_workflows_have_no_retired_model_routes(self):
+        for path in Path(".github/workflows").glob("*.yml"):
+            source = path.read_text(encoding="utf-8").lower()
+            for retired in ("bosgame", "gpt-oss", "159.195.207.48"):
+                self.assertNotIn(retired, source, path.name)
 
 
 if __name__ == "__main__":

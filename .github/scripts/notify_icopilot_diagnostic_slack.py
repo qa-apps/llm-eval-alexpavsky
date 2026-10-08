@@ -107,8 +107,10 @@ def build_payload(channel: str, data: dict, index_url: str, run_url: str) -> dic
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--channel", required=True)
-    parser.add_argument("--base-url", default="https://159.195.207.48.sslip.io/static/eval-reports/diagnostics")
+    parser.add_argument("--base-url", default=os.environ.get("ICO_PILOT_DIAGNOSTICS_REPORT_URL", ""))
     args = parser.parse_args()
+    if not args.base_url:
+        raise SystemExit("ICO_PILOT_DIAGNOSTICS_REPORT_URL or --base-url is required")
     token = os.environ.get("SLACK_BOT_TOKEN", "")
     base = args.base_url.rstrip("/")
     try:

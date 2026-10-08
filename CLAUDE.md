@@ -20,7 +20,7 @@ pages/         Page Object Model classes (HomePage, AuthPage, ChatbotPage, …)
 utils/         fixtures.ts, llm-judges.ts, verdict-reporter.ts, model-registry.ts
 performance/   k6 scripts
 eval/          Python-based LLM eval scripts (Giskard, RAGAS)
-scripts/       provider refresh/ping (ts-node), build_eval_site.py
+scripts/       pinned provider validation, build_eval_site.py
 judge-verdicts/  generated LLM judge verdict reports (do not hand-edit)
 ```
 
@@ -66,7 +66,7 @@ npm run test:smoke -- -g "footer"                 # smoke + name filter
 ## CI: what blocks merges, what doesn't
 
 - `.github/workflows/playwright-ci.yml` — deterministic tests, **blocks PR merges**.
-- `.github/workflows/llm-quality.yml` — essential LLM-judge tests on the bosgame GPT-OSS runner; failures are reported after artifacts and notifications are published.
+- `.github/workflows/llm-quality.yml` — essential LLM-judge tests on GitHub-hosted runners with DeepSeek; failures are reported after artifacts and notifications are published.
 - Split is by name: deterministic = everything not matching `grep "LLM Judge|Content quality"`.
 - If a deterministic test goes flaky, prefer disabling the assertion locally and opening an issue over moving it to llm-quality.
 
@@ -81,7 +81,7 @@ Stale reports mislead future runs — let the tooling regenerate them.
 ## Local `.env` — what's actually required
 
 For UI / security / feed / smoke specs: no keys needed.
-For `npm run eval` and LLM-judge specs: `LOCAL_LLM_BASE_URL`, `LOCAL_LLM_MODEL`, and optional `LOCAL_LLM_API_KEY`.
+For `npm run eval` and LLM-judge specs: `DEEPSEEK_API_KEY`.
 For Slack notifications from CI only: `SLACK_WEBHOOK_URL`.
 Run `npm run providers:ping` to verify keys before a judge run.
 
@@ -90,13 +90,13 @@ Run `npm run providers:ping` to verify keys before a judge run.
 - Add new tests under `tests/` matching existing topic split (chatbot, feed, security, lab-tools, mobile-responsive, …). Use POM classes from `pages/` instead of raw selectors in specs.
 - Single chromium project — don't add browsers/devices without asking.
 - Tests run against **production**. No staging URL. Don't write specs that mutate site state or hit rate-limited endpoints aggressively.
-- Promptfoo runs with `--max-concurrency 1` because GPT-OSS 120B is intentionally served one request at a time. Don't bump it.
+- Promptfoo runs with `--max-concurrency 2` against DeepSeek cloud.
 - Judge verdicts in `judge-verdicts/` are generated artifacts — they may be committed, but Claude should not author them by hand.
 - CI runs on push to `master`, PRs into `master`, manual dispatch, and nightly at 10pm New York time (two UTC crons + NY gate for DST).
 
 ## Secrets
 
-`.env` is loaded by `playwright.config.ts` via `dotenv`. Live LLM judge runs use `LOCAL_LLM_BASE_URL` and `LOCAL_LLM_MODEL`; CI points both at bosgame. Slack notifications need `SLACK_WEBHOOK_URL`. Never commit `.env` or echo key values.
+`.env` is loaded by `playwright.config.ts` via `dotenv`. Live LLM judge runs use `DEEPSEEK_API_KEY`; vision audit uses `GEMINI_API_KEY`. Slack notifications need `SLACK_WEBHOOK_URL`. Never commit `.env` or echo key values.
 
 ## When changing application behavior
 
