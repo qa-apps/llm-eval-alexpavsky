@@ -95,7 +95,7 @@ jobs:
 
       - name: Run auto-fix agent
         # OpenCode is the only paid cloud provider allowed for agent-fix.
-        # Evaluation workflows use the local BossGame models instead.
+        # Evaluation workflows use Go first with direct DeepSeek fallback.
         env:
           OPENCODE_API_KEY:   ${{ secrets.OPENCODE_API_KEY }}
           OPENCODE_MODEL:     kimi-k2.7-code

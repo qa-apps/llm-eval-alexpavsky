@@ -44,16 +44,17 @@ const HEADLINE_SYSTEM_PROMPT = `You are a headline-quality classifier. You recei
 
 Score on this exact scale:
 - 5 = clear, specific, real-sounding article headline on an identifiable topic
-- 4 = legitimate headline, slightly generic but plausibly real
-- 3 = vague but not obviously broken
-- 2 = looks like SITE infrastructure failure: placeholder copy from a missing template, "Loading...", a fallback notice, "Untitled", marketing filler with no information at all
+- 4 = legitimate headline, including a short topic label or question-form title
+- 3 = suspiciously malformed or template-like, but not conclusive
+- 2 = looks like SITE infrastructure failure: placeholder copy from a missing template, "Loading...", a fallback notice, or "Untitled"
 - 1 = empty, gibberish, random unrelated words, debug strings, or obviously broken
 
 Treat 4-5 as PASS (isReal=true). Treat 1-3 as FAIL (isReal=false).
 
 CRITICAL distinction:
 - A headline that MENTIONS an error topic ("Error: Cannot Set Headers After They Are Sent", "Fixing memory leaks in Python", "How to debug 502 Bad Gateway", "Cannot read property of undefined explained", "Common SQL errors and fixes") is a LEGITIMATE technical article — pass (4-5). Developers write articles ABOUT errors all the time.
-- Only flag (1-3) when the text itself looks like the SITE failed: literal "Loading...", "Untitled", empty string, "[object Object]", lorem ipsum, or content that has no recognisable English meaning.
+- Only flag (1-3) when the text itself looks broken: literal "Loading...", "Untitled", empty string, "[object Object]", lorem ipsum, malformed template output, or content with no recognisable meaning.
+- "React Props" is a valid short technical article title. A question such as "Can you spot the AI's mistake?" is a valid headline. Do not demand a verb, detailed angle, or full article summary from a headline.
 
 Do NOT penalise the headline for:
   - being short (expected — it's a headline)
@@ -167,14 +168,7 @@ async function judgeArticle(
             ],
             temperature: 0,
             response_format: { type: 'json_object' },
-            // Bound local output so the JSON verdict is not cut off. Only
-            // GPT-OSS accepts the OpenAI reasoning_effort extension.
-            ...(providerName === 'ollama' ? {
-              max_tokens: Number(process.env.LOCAL_LLM_MAX_TOKENS || 1024),
-              ...(model.includes('gpt-oss') ? {
-                reasoning_effort: process.env.LOCAL_LLM_REASONING_EFFORT || 'low',
-              } : {}),
-            } : {}),
+            max_tokens: Number(process.env.LOCAL_LLM_MAX_TOKENS || 1024),
           },
         });
         const text = await resp.text();

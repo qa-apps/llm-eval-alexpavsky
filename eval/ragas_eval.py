@@ -3,20 +3,20 @@
 ragas_eval.py — Ragas-based RAG quality evaluation for alexpavsky.com.
 
 Runs golden questions through the RAG API, then evaluates each answer with
-Ragas metrics (faithfulness, answer_relevancy) using local GPT-OSS as the LLM
-judge and local embeddings.
+Ragas metrics (faithfulness, answer_relevancy) using a cloud judge and CPU embeddings.
 
 Designed for both local development and nightly CI runs.
 
 Usage (local):
     pip install -r eval/requirements.txt
-    LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1 python eval/ragas_eval.py
+    python eval/cloud_gateway.py  # in a separate process
+    python eval/ragas_eval.py
 
 Usage (CI):
     See .github/workflows/ragas-nightly.yml
 
 Environment variables:
-    LOCAL_LLM_BASE_URL Optional. Local OpenAI-compatible judge endpoint.
+    CLOUD_EVAL_BASE_URL Optional. OpenAI-compatible judge gateway endpoint.
     RAG_API_URL        Optional. Default: http://localhost:8001
     MIN_FAITHFULNESS   Optional. Default: 0.50. Build fails if avg below.
     MIN_RELEVANCY      Optional. Default: 0.35. Build fails if avg below.
@@ -45,8 +45,7 @@ RESULTS_DIR = ROOT / "eval" / "results"
 
 RAG_API_URL = os.environ.get("RAG_API_URL", "http://localhost:8001").rstrip("/")
 
-# The judge and embedding provider are configured by rotating_llm.py and point
-# to the local bosgame Ollama service in CI.
+# The judge and embedding provider are configured by rotating_llm.py.
 
 MIN_FAITHFULNESS = float(os.environ.get("MIN_FAITHFULNESS", "0.50"))
 MIN_RELEVANCY = float(os.environ.get("MIN_RELEVANCY", "0.35"))
@@ -211,7 +210,7 @@ def main() -> int:
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Local GPT-OSS judge is not configured. Set LOCAL_LLM_BASE_URL and LOCAL_LLM_MODEL.")
+        fail("No cloud judge is configured. Start eval/cloud_gateway.py.")
     log(f"Judge providers available: {len(providers)}")
     for p in providers:
         log(f"  - {p['name']:20s} / {p['model']}")
@@ -314,8 +313,7 @@ def main() -> int:
     except ImportError as e:
         fail(f"Missing dependency: {e}. Run: pip install -r eval/requirements.txt")
 
-    # Build the local judge. The wrapper shape is retained for compatibility
-    # with Ragas, but the configured provider list contains bosgame only.
+    # The wrapper shape is retained for Ragas compatibility.
     from rotating_llm import RotatingJudgeLLM, lifecycle_headers
     judge_llm = RotatingJudgeLLM(
         providers=providers,
@@ -324,11 +322,11 @@ def main() -> int:
     )
     primary_name = providers[0]["name"]
     primary_model = providers[0]["model"]
-    log(f"  Judge: local ({len(providers)} configured provider)")
+    log(f"  Judge: cloud gateway ({len(providers)} configured provider)")
     log(f"  Primary: {primary_name} / {primary_model}")
     fallbacks = providers[1:]
 
-    embedding_model = os.environ.get("LOCAL_EMBEDDING_MODEL", "qwen3-embedding:4b")
+    embedding_model = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_root = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
     if not embedding_root:
         embedding_root = providers[0]["base_url"].removesuffix("/v1")

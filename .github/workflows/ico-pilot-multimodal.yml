@@ -3,7 +3,7 @@ name: I-Copilot Multimodal Report
 on:
   workflow_dispatch:
   schedule:
-    # The hosted eval starts at 02:40 and may wait behind a Bosgame model.
+    # The hosted eval starts at 02:40; publish its daytime report separately.
     # Publish its detailed Slack report at 09:00 America/New_York.
     - cron: '0 13 * * *'
     - cron: '0 14 * * *'

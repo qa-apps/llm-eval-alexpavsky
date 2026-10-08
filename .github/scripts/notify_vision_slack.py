@@ -10,7 +10,7 @@ import os
 import sys
 import urllib.request
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
@@ -39,10 +39,17 @@ def upload_file(
     path = Path(file_path)
     if not path.is_file() or path.stat().st_size > MAX_UPLOAD_BYTES:
         return ""
-    prepared = slack_post(token, "files.getUploadURLExternal", {
-        "filename": path.name,
-        "length": path.stat().st_size,
-    })
+    request = urllib.request.Request(
+        "https://slack.com/api/files.getUploadURLExternal",
+        data=urlencode({"filename": path.name, "length": path.stat().st_size}).encode(),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        prepared = json.loads(response.read())
     if not prepared.get("ok"):
         print(f"Slack upload preparation failed: {prepared.get('error')}", file=sys.stderr)
         return ""
@@ -95,7 +102,6 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
     case_id = step.get("test_case_id") or f"VISION-{int(step.get('step', 0)):03d}"
     verdict = str(step.get("verdict") or "unknown").upper()
     marker = ":white_check_mark:" if verdict == "PASSED" else ":x:"
-    image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
     blocks = [
         {
             "type": "header",
@@ -106,7 +112,7 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"{marker} *Required browser journey + local Vision review*\n"
+                    f"{marker} *Required browser journey + Vision review*\n"
                     f"*Case:* {slack_text(step.get('test_case_name') or case_id)}\n"
                     f"*Page:* {slack_text(step.get('title') or step.get('url'))}\n"
                     f"*URL:* {slack_text(step.get('url'))}"
@@ -119,7 +125,7 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
                 {"type": "mrkdwn", "text": f"*Objective*\n{slack_text(step.get('objective'))}"},
                 {"type": "mrkdwn", "text": f"*Expected*\n{slack_text(step.get('expected_result'))}"},
                 {"type": "mrkdwn", "text": f"*Actual*\n{slack_text(step.get('actual_result'))}"},
-                {"type": "mrkdwn", "text": f"*Local model latency*\n{step.get('model_latency_ms', 0)} ms"},
+                {"type": "mrkdwn", "text": f"*Vision model latency*\n{step.get('model_latency_ms', 0)} ms"},
             ],
         },
         {
@@ -127,7 +133,7 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*Local Vision analysis*\n{slack_text(step.get('summary'))}\n\n"
+                    f"*Cloud Vision analysis*\n{slack_text(step.get('summary'))}\n\n"
                     f"*Browser action:* `{slack_text(selected, 250)}`\n"
                     f"*Checks:* {slack_text(checks or 'No completed assertions')}\n"
                     f"*Deterministic result:* `{slack_text(actual, 80)}`\n\n"
@@ -137,12 +143,12 @@ def test_case_blocks(step: dict, dashboard_url: str) -> list[dict]:
             },
         },
     ]
+    image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
     if image_url:
         blocks.append({
             "type": "image",
             "image_url": image_url,
-            "alt_text": f"Screenshot for {case_id}"[:2000],
-            "title": {"type": "plain_text", "text": f"{case_id} screenshot"[:2000]},
+            "alt_text": f"Screenshot for {case_id}"[:200],
         })
     return blocks
 
@@ -212,20 +218,20 @@ def main() -> int:
         f"{marker} *AlexPavsky Daily Audit - {status.upper()}*\n"
         f"_{meaning}_\n"
         f"*Model:* `{report.get('model', 'unknown')}`\n"
-        f"*Audit evaluator:* `{provenance.get('execution', 'local-only')}` via "
-        f"`{provenance.get('provider', 'Ollama')}` at `{provenance.get('endpoint', 'local endpoint')}`\n"
+        f"*Audit evaluator:* `{provenance.get('execution', 'unknown')}` via "
+        f"`{provenance.get('provider', 'unknown')}` at `{provenance.get('endpoint', 'unknown endpoint')}`\n"
         f"*Cloud evaluator calls:* *{provenance.get('cloud_llm_calls', 0)}*\n"
         "_Production AI Chat, Voice, and Challenge may use their own configured providers._\n"
         f"*Coverage:* {len(steps)} documented journeys, "
         f"{len(report.get('pages_observed') or [])} unique URLs\n"
-        f"*Vision usage:* {usage.get('calls', 0)} local calls, "
+        f"*Vision usage:* {usage.get('calls', 0)} calls, "
         f"{usage.get('prompt_tokens', 0)} input tokens, "
         f"{usage.get('completion_tokens', 0)} output tokens\n"
         f"*Candidate observations:* {len(report.get('candidate_findings') or [])} "
         f"(only calibrated findings can fail CI)\n"
         f"*Findings:*\n" + "\n".join(finding_lines(report)) + "\n"
-        "*Evidence:* every screenshot and the session video are attached in this thread; "
-        "raw JSON is available in the full report.\n"
+        "*Evidence:* every screenshot is shown in this thread; the video and raw JSON are in the full report. "
+        "\n"
         f"{' | '.join(link for link in (dashboard_link, run_link) if link)}\n"
         f"Every UI opening and AI input/output pair is documented in this thread."
     )
@@ -237,19 +243,9 @@ def main() -> int:
     thread_ts = result.get("ts")
     if not thread_ts:
         return 1 if args.require_delivery else 0
-    delivered = True
+    delivered = bool(dashboard_url)
     for step in steps:
         case_id = step.get("test_case_id") or f"step {step.get('step')}"
-        screenshot_link = upload_file(
-            token,
-            channel,
-            step.get("screenshot", ""),
-            f"{case_id}: {step.get('test_case_name') or step.get('title') or step.get('url')}",
-            thread_ts,
-        )
-        if not screenshot_link:
-            delivered = False
-            print(f"Slack screenshot upload failed for {case_id}", file=sys.stderr)
         thread_result = slack_post(token, "chat.postMessage", {
             "channel": channel,
             "thread_ts": thread_ts,
@@ -263,16 +259,16 @@ def main() -> int:
                 file=sys.stderr,
             )
 
-    video_link = upload_file(
-        token,
-        channel,
-        video,
-        "Agentic Vision Audit recording",
-        thread_ts,
-    )
-    if not video_link:
-        delivered = False
-        print("Slack session-video upload failed", file=sys.stderr)
+    if video and dashboard_url:
+        video_url = f"{dashboard_url.rstrip('/')}/videos/{quote(Path(video).name)}"
+        video_result = slack_post(token, "chat.postMessage", {
+            "channel": channel,
+            "thread_ts": thread_ts,
+            "text": f"<{video_url}|Open Daily Audit session video>",
+        })
+        if not video_result.get("ok"):
+            delivered = False
+            print(f"Slack video link failed: {video_result.get('error')}", file=sys.stderr)
     return 0 if delivered or not args.require_delivery else 1
 
 

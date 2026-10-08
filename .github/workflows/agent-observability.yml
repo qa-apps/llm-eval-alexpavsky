@@ -343,15 +343,20 @@ jobs:
     name: Voice Scenario (LangWatch) + chat traces (Langfuse)
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true' && (github.event_name != 'workflow_dispatch' || inputs.review_sha == '')
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    # Scheduled runs may wait behind an interactive GPU lease. Keep the wait
-    # below the six-hour GitHub job cap so the actual checks still have time.
-    timeout-minutes: 360
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
-      LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1
-      LOCAL_LLM_MODEL: gpt-oss:120b
-      LOCAL_LLM_UPSTREAM_MODEL: gpt-oss:120b
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
+      LOCAL_LLM_BASE_URL: http://127.0.0.1:18765/v1
+      CLOUD_EVAL_ROUTE_MODE: go-primary
+      LOCAL_LLM_MODEL: cloud-eval
+      LOCAL_LLM_UPSTREAM_MODEL: cloud-eval
+      LOCAL_LLM_API_KEY: cloud-eval
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+      SAMBANOVA_API_KEY: ${{ secrets.SAMBANOVA_API_KEY }}
+      NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+      OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
     outputs:
       voice: ${{ steps.voice.outcome }}
       langfuse: ${{ steps.langfuse.outcome }}
@@ -371,41 +376,22 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Wait for local evaluator
-        id: local_evaluator
-        env:
-          LOCAL_LLM_PRIORITY_MAX_WAIT_SEC: ${{ github.event_name == 'schedule' && '18000' || '3600' }}
+      - name: Start cloud judge and verify a real completion
         run: |
-          echo "lease_acquired=false" >> "$GITHUB_OUTPUT"
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
-          while true; do
-            if models=$(curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-              -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-              -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-              -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-              "${LOCAL_LLM_BASE_URL%/v1}/v1/models") && \
-              python3 -c 'import json,sys; wanted=sys.argv[1]; ids=[m.get("id") for m in json.load(sys.stdin).get("data", [])]; raise SystemExit(0 if wanted in ids or "gpt-oss:120b" in ids else 1)' "$LOCAL_LLM_MODEL" <<<"$models"; then
-              echo "lease_acquired=true" >> "$GITHUB_OUTPUT"
-              break
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Local Scenario evaluator is unavailable."
-              exit 1
-            fi
-            echo "Local model gateway is busy; retrying in 10s."
-            sleep 10
+          set -euo pipefail
+          nohup python3 -u eval/cloud_gateway.py > cloud-gateway.log 2>&1 &
+          for attempt in {1..20}; do
+            if curl -fsS http://127.0.0.1:18765/health >/dev/null; then break; fi
+            sleep 1
           done
-
-          curl --fail --silent --show-error --max-time 180 \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "Content-Type: application/json" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-            "$LOCAL_LLM_BASE_URL/chat/completions" \
-            -d "{\"model\":\"$LOCAL_LLM_MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"Reply ready\"}],\"max_tokens\":8,\"stream\":false}" >/dev/null
+          curl -fsS --max-time 120 http://127.0.0.1:18765/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"model":"cloud-eval","messages":[{"role":"user","content":"Reply OK"}],"max_tokens":64}' \
+            | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["choices"][0]["message"]["content"]'
 
       - name: Detect backend keys
         id: keys
+        if: always()
         env:
           LANGWATCH_API_KEY: ${{ secrets.LANGWATCH_API_KEY }}
           LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
@@ -423,7 +409,7 @@ jobs:
           LANGWATCH_API_KEY: ${{ secrets.LANGWATCH_API_KEY }}
           LANGWATCH_ENDPOINT: ${{ vars.LANGWATCH_ENDPOINT || 'https://app.langwatch.ai' }}
           SCENARIO_BATCH_RUN_ID: gh-${{ github.run_id }}
-          SCENARIO_JUDGE_PROVIDER: local
+          SCENARIO_JUDGE_PROVIDER: cloud
           SCENARIO_JUDGE_MODEL: ${{ env.LOCAL_LLM_MODEL }}
         run: npx vitest run tests/voice
 
@@ -436,12 +422,17 @@ jobs:
           LANGFUSE_HOST: ${{ vars.LANGFUSE_HOST || 'https://us.cloud.langfuse.com' }}
         run: npx vitest run tests/observability
 
-      - name: Release background model lease
-        if: always() && steps.local_evaluator.outputs.lease_acquired == 'true'
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background || true
+      - name: Save observability judge calls
+        if: always()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
+        with:
+          name: observability-judge-calls-${{ github.run_number }}
+          path: |
+            cloud-eval-ledger.jsonl
+            cloud-gateway.log
+          retention-days: 30
+          if-no-files-found: warn
+
 
   slack-observability:
     needs: agent-checks

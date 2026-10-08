@@ -10,7 +10,7 @@ Differs from ragas_eval.py in two ways:
     for the nightly, big enough to cover several question types.
 
 Reads from the live RAG API (alexpavsky.com or env override). Uses the
-same local GPT-OSS judge as Ragas. Besides the aggregate summary, every
+same cloud-routed judge as Ragas. Besides the aggregate summary, every
 question is written to results/giskard_rag_cases.json with its PASS/FAIL
 verdict and the judge's reason, so the Pages report can show each one.
 """
@@ -99,8 +99,7 @@ class PermissiveCorrectnessMetric:
             json={
                 "model": self.provider["model"],
                 "temperature": 0,
-                # GPT-OSS reasons before answering; 512 tokens could end with
-                # empty content, so give it room and keep reasoning short.
+                # Some providers reason before answering; leave room for JSON output.
                 "max_tokens": int(os.environ.get("LOCAL_LLM_MAX_TOKENS", "2048")),
                 "reasoning_effort": os.environ.get("LOCAL_LLM_REASONING_EFFORT", "low"),
                 "response_format": {"type": "json_object"},
@@ -203,12 +202,12 @@ def main() -> None:
     except ImportError as e:
         fail(f"Missing dependency: {e}. Run: pip install -r eval/requirements.txt")
 
-    # Use the same local judge as Ragas — Giskard needs an OpenAI-compatible
+    # Use the same cloud-routed judge as Ragas — Giskard needs an OpenAI-compatible
     # client for both question generation and answer evaluation.
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Local GPT-OSS judge is not configured.")
+        fail("No evaluation judge is configured.")
 
     from rotating_llm import configure_giskard
     primary_label = configure_giskard(providers, log)

@@ -15,14 +15,14 @@ type StrictJudgePayload = {
 
 function localConfig() {
   const baseURL = process.env.LOCAL_LLM_BASE_URL;
-  if (!baseURL) throw new Error("Scenario needs the local evaluator. Set LOCAL_LLM_BASE_URL.");
+  if (!baseURL) throw new Error("Scenario needs an evaluator gateway. Set LOCAL_LLM_BASE_URL.");
   const apiKey = process.env.LOCAL_LLM_API_KEY;
-  if (!apiKey) throw new Error("Scenario needs the local gateway key. Set LOCAL_LLM_API_KEY.");
+  if (!apiKey) throw new Error("Scenario needs the evaluator gateway key. Set LOCAL_LLM_API_KEY.");
   return {
     apiKey,
     baseURL: baseURL.replace(/\/$/, ""),
-    model: process.env.SCENARIO_JUDGE_MODEL || "gpt-oss:120b",
-    upstreamModel: process.env.LOCAL_LLM_UPSTREAM_MODEL || "gpt-oss:120b",
+    model: process.env.SCENARIO_JUDGE_MODEL || "cloud-eval",
+    upstreamModel: process.env.LOCAL_LLM_UPSTREAM_MODEL || "cloud-eval",
   };
 }
 
@@ -32,7 +32,7 @@ function localConfig() {
  * This is the *evaluator* model and is completely separate from the agent under
  * test (the deployed voice assistant). It needs solid tool-calling (the judge
  * emits a structured finish_test verdict). Preference order picks the key that
- * CI and developer eval runs use the local BossGame/Ollama gateway only.
+ * CI uses the cloud evaluation gateway.
  * Override the model id with SCENARIO_JUDGE_MODEL.
  *
  * OpenAI-compatible providers use the Chat Completions API (`.chat()`): the AI
@@ -48,28 +48,29 @@ export function judgeModel(): LanguageModel {
       "X-LLM-Model": config.upstreamModel,
     },
   });
-  return p.chat(config.model);
+  // Scenario's LanguageModel type lags the provider SDK; the live adapter uses the same chat contract.
+  return p.chat(config.model) as unknown as LanguageModel;
 }
 
 export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeResult {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const payload = JSON.parse(cleaned) as StrictJudgePayload;
   if (!Array.isArray(payload.results) || payload.results.length !== criteria.length) {
-    throw new Error(`Local judge returned ${payload.results?.length ?? 0}/${criteria.length} criterion decisions`);
+    throw new Error(`Judge returned ${payload.results?.length ?? 0}/${criteria.length} criterion decisions`);
   }
 
   const byIndex = new Map<number, CriterionDecision>();
   for (const decision of payload.results) {
     if (!Number.isInteger(decision.index) || typeof decision.met !== "boolean") {
-      throw new Error("Local judge returned an invalid criterion decision");
+      throw new Error("Judge returned an invalid criterion decision");
     }
-    if (byIndex.has(decision.index)) throw new Error("Local judge returned a duplicate criterion index");
+    if (byIndex.has(decision.index)) throw new Error("Judge returned a duplicate criterion index");
     byIndex.set(decision.index, decision);
   }
 
   const decisions = criteria.map((_, index) => {
     const decision = byIndex.get(index + 1);
-    if (!decision) throw new Error(`Local judge omitted criterion ${index + 1}`);
+    if (!decision) throw new Error(`Judge omitted criterion ${index + 1}`);
     return decision;
   });
   const metCriteria = criteria.filter((_, index) => decisions[index].met);
@@ -80,7 +81,7 @@ export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeR
 
   return {
     success: unmetCriteria.length === 0,
-    reasoning: `${payload.reasoning || "Local judge evaluation"}\n${details}`,
+    reasoning: `${payload.reasoning || "Judge evaluation"}\n${details}`,
     metCriteria,
     unmetCriteria,
   };
@@ -88,7 +89,7 @@ export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeR
 
 export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
   return {
-    name: "strict-local-gpt-oss-judge",
+    name: "strict-cloud-eval-judge",
     role: AgentRole.JUDGE,
     criteria,
     call: async (input: AgentInput) => {
@@ -130,10 +131,10 @@ export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
               stream: false,
             }),
           });
-          if (!response.ok) throw new Error(`local judge HTTP ${response.status}: ${await response.text()}`);
+          if (!response.ok) throw new Error(`judge HTTP ${response.status}: ${await response.text()}`);
           const data: any = await response.json();
           const content = data?.choices?.[0]?.message?.content;
-          if (typeof content !== "string" || !content.trim()) throw new Error("Local judge returned no content");
+          if (typeof content !== "string" || !content.trim()) throw new Error("Judge returned no content");
           return parseStrictJudgePayload(content, criteria);
         } catch (error) {
           lastError = error;

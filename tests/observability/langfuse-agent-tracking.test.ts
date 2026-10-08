@@ -61,22 +61,37 @@ async function lfGet(path: string): Promise<any> {
   return res.json();
 }
 
-/** Poll until the asynchronously ingested trace includes its generation usage. */
-async function waitForTrace(sessionId: string, attempts = 12, delayMs = 5000): Promise<any> {
+/** Poll the supported observations endpoint until ingestion includes token usage. */
+async function waitForTrace(sessionId: string, attempts = 10, delayMs = 5000): Promise<any> {
   let latestTrace: any = null;
   for (let i = 0; i < attempts; i++) {
-    const list = await lfGet(`/api/public/traces?sessionId=${encodeURIComponent(sessionId)}`);
-    const traces: any[] = list?.data || [];
-    if (traces.length > 0) {
-      // Trace creation and generation events are ingested independently. A
-      // trace can therefore appear briefly with no observations or usage yet.
-      latestTrace = await lfGet(`/api/public/traces/${encodeURIComponent(traces[0].id)}`);
-      const observations: any[] = latestTrace?.observations || [];
-      if (observations.length > 0 && totalTokens(latestTrace) > 0) {
-        return latestTrace;
-      }
+    const from = new Date(Date.now() - 5 * 60_000).toISOString();
+    const to = new Date(Date.now() + 60_000).toISOString();
+    const query = new URLSearchParams({
+      sessionId,
+      fromStartTime: from,
+      toStartTime: to,
+      fields: "core,basic,usage",
+      limit: "100",
+    });
+    const page = await lfGet(`/api/public/v2/observations?${query}`);
+    const observations: any[] = page?.data || [];
+    if (observations.length > 0) {
+      latestTrace = { observations };
+      if (totalTokens(latestTrace) > 0) return latestTrace;
     }
     await new Promise((r) => setTimeout(r, delayMs));
+  }
+  // Older ingestion SDKs may take 15 minutes to appear in v2. Make one legacy
+  // read for the just-created trace without repeatedly polling its rate-limited endpoint.
+  const list = await lfGet(`/api/public/traces?sessionId=${encodeURIComponent(sessionId)}`);
+  const traceId = list?.data?.[0]?.id;
+  if (traceId) {
+    const legacyTrace = await lfGet(`/api/public/traces/${encodeURIComponent(traceId)}`);
+    if ((legacyTrace?.observations || []).length > 0 && totalTokens(legacyTrace) > 0) {
+      return legacyTrace;
+    }
+    latestTrace = legacyTrace;
   }
   return latestTrace;
 }
@@ -85,11 +100,13 @@ function totalTokens(trace: any): number {
   const observations: any[] = trace?.observations || [];
   let sum = 0;
   for (const o of observations) {
-    const u = o?.usage || {};
+    const u = o?.usageDetails || o?.usage || {};
     const t =
+      o?.totalUsage ??
       u.total ??
       u.totalTokens ??
-      (Number(u.input || u.promptTokens || 0) + Number(u.output || u.completionTokens || 0));
+      (Number(o?.inputUsage || u.input || u.promptTokens || 0) +
+        Number(o?.outputUsage || u.output || u.completionTokens || 0));
     sum += Number(t || 0);
   }
   // fall back to trace-level aggregate if observations carried no usage
