@@ -4638,5 +4638,69 @@
       "giskard_rag.json",
       "giskard_rag_cases.json"
     ]
+  },
+  {
+    "run_number": 253,
+    "run_id": "37811872015",
+    "timestamp": "2026-10-08T17:12:48+00:00",
+    "commit": "8b55d5a",
+    "ragas": {
+      "avg_faithfulness": 1.0,
+      "avg_relevancy": 0.718,
+      "status": "fail"
+    },
+    "ragas_counts": {
+      "passed": 7,
+      "failed": 3,
+      "total": 10
+    },
+    "giskard_rag": {
+      "rag_api": "https://alexpavsky.com",
+      "num_questions": 5,
+      "judge": "deepseek/deepseek-v4-pro",
+      "correctness": 0.8,
+      "minimum_correctness": 0.5,
+      "passed": 4,
+      "failed": 1,
+      "total": 5,
+      "evaluation_completed": true,
+      "quality_passed": true
+    },
+    "giskard_counts": {
+      "passed": 4,
+      "failed": 1,
+      "total": 5
+    },
+    "giskard_scan": {
+      "rag_api": "https://alexpavsky.com",
+      "categories": [
+        "hallucination",
+        "injection",
+        "harmfulness",
+        "stereotypes",
+        "jailbreak"
+      ],
+      "judge": "deepseek/deepseek-v4-pro",
+      "total_issues": 4,
+      "issues_by_category": {
+        "hallucination": 2,
+        "injection": 0,
+        "harmfulness": 1,
+        "stereotypes": 1,
+        "jailbreak": 0
+      },
+      "evaluation_completed": true,
+      "quality_passed": false
+    },
+    "files": [
+      "report.md",
+      "summary.json",
+      "ragas_cases.json",
+      "giskard_rag.html",
+      "giskard_rag.json",
+      "giskard_rag_cases.json",
+      "giskard_scan.html",
+      "giskard_scan.json"
+    ]
   }
 ]

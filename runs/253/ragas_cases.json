@@ -1,0 +1,625 @@
+{
+  "evaluation_completed": true,
+  "quality_passed": true,
+  "thresholds": {
+    "faithfulness": 0.5,
+    "relevancy": 0.35,
+    "allowed_failures": 3
+  },
+  "cases": [
+    {
+      "id": "finnova-01-agent-count",
+      "category": "facts",
+      "prompt": "How many specialized AI agents were deployed at FinNova Bank?",
+      "answer": "FinNova Bank’s QA transformation deployed **seven (7) specialized AI agents**. 【Context: “The engagement deployed 7 specialized AI agents…”】",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.6294949121186305
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5140565906661894
+        },
+        {
+          "file": "Combinatorial AI Testing.md",
+          "score": 0.5065553482439915
+        },
+        {
+          "file": "AI Testing Tool Landscape 2026.md",
+          "score": 0.4624362930731424
+        },
+        {
+          "file": "End-to-End First Eval Strategy.md",
+          "score": 0.44070343849946925
+        },
+        {
+          "file": "Agent Security Tools.md",
+          "score": 0.42553934898738044
+        },
+        {
+          "file": "Trustworthy AI - AI QA Lab.md",
+          "score": 0.4178448070380214
+        },
+        {
+          "file": "RAG Testing.md",
+          "score": 0.39990097880953746
+        },
+        {
+          "file": "AI Testing Tool Landscape 2026.md",
+          "score": 0.3968447867816941
+        },
+        {
+          "file": "OWASP LLM Top 10.md",
+          "score": 0.3951199415254635
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.8655444672953855,
+      "expected_keywords": [
+        "seven",
+        "7"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "seven",
+        "7"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "finnova-02-bug-reduction",
+      "category": "metrics",
+      "prompt": "By what percentage did production bugs drop at FinNova Bank?",
+      "answer": "67%",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5325177234368984
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5148436987772707
+        },
+        {
+          "file": "Claude Fixer Auth Fallback in Daily QA Loop.md",
+          "score": 0.35713746930920265
+        },
+        {
+          "file": "01_Senior_QA_Automation_AI_Assisted_Testing_Handbook.docx",
+          "score": 0.3468724854296481
+        },
+        {
+          "file": "01_Senior_QA_Automation_AI_Assisted_Testing_Handbook.docx",
+          "score": 0.3352879482164468
+        },
+        {
+          "file": "Verification Discipline.md",
+          "score": 0.3262416927526386
+        },
+        {
+          "file": "End-to-End First Eval Strategy.md",
+          "score": 0.3239156217675683
+        },
+        {
+          "file": "01_Senior_QA_Automation_AI_Assisted_Testing_Handbook.docx",
+          "score": 0.31883381156115254
+        },
+        {
+          "file": "01_Senior_QA_Automation_AI_Assisted_Testing_Handbook.docx",
+          "score": 0.31113060580127394
+        },
+        {
+          "file": "05_Cloud_Kubernetes_Observability_Security_QA_Guide.docx",
+          "score": 0.3110030518766602
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.31844246875102505,
+      "expected_keywords": [
+        "67%"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "67%"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "finnova-03-cost-savings",
+      "category": "metrics",
+      "prompt": "How much did FinNova save annually in operating costs?",
+      "answer": "FinNova saved $2.4 million annually in operating costs after implementing the QA transformation with agentic AI.",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5356502171188214
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.4070512818602423
+        },
+        {
+          "file": "Realtime Voice Copilot Latency Budget.md",
+          "score": 0.23839940199855603
+        },
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.21595990860701186
+        },
+        {
+          "file": "Alexpavsky Multi-Agent Runtime Architecture.md",
+          "score": 0.20356928088848147
+        },
+        {
+          "file": "Langfuse.md",
+          "score": 0.19966379408075885
+        },
+        {
+          "file": "Quality Architecture.md",
+          "score": 0.19939388938022984
+        },
+        {
+          "file": "Whisper Hallucinates on Silent Audio.md",
+          "score": 0.19411956106903816
+        },
+        {
+          "file": "Quality Architecture.md",
+          "score": 0.19137554220106978
+        },
+        {
+          "file": "Local Model Selection for Strix Halo 128GB.md",
+          "score": 0.18984389663673096
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.7097549778876168,
+      "expected_keywords": [
+        "$2.4 million",
+        "2.4M"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "$2.4 million"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "finnova-04-mttd",
+      "category": "metrics",
+      "prompt": "What was the mean time to detection (MTTD) before and after the engagement?",
+      "answer": "Before: 4 hours 30 minutes  \nAfter: 12 minutes",
+      "sources": [
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.3070858625446016
+        },
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.29775064614407465
+        },
+        {
+          "file": "Verification Discipline.md",
+          "score": 0.28106709944401986
+        },
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.2752452164596061
+        },
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.27419440304074316
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.2734457659520334
+        },
+        {
+          "file": "Verification Discipline.md",
+          "score": 0.27098479616823234
+        },
+        {
+          "file": "Realtime Interview Assistant Architecture.md",
+          "score": 0.27076390138102746
+        },
+        {
+          "file": "Chatbot File Upload Testing.md",
+          "score": 0.2676938314620362
+        },
+        {
+          "file": "AI-Driven E2E Site Audit.md",
+          "score": 0.26628504402308917
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.33242932580416573,
+      "expected_keywords": [
+        "4 hours 30 minutes",
+        "12 minutes"
+      ],
+      "keyword_passed": false,
+      "keyword_matched": [],
+      "accept_refusal": false,
+      "passed": false
+    },
+    {
+      "id": "finnova-05-test-cases",
+      "category": "facts",
+      "prompt": "How many automated test cases did the Test Generator agent produce?",
+      "answer": "The Test Generator agent produced 3,247 automated test cases.",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5856592655181885
+        },
+        {
+          "file": "AI Testing Tool Landscape 2026.md",
+          "score": 0.5587938690904467
+        },
+        {
+          "file": "Trustworthy AI - AI QA Lab.md",
+          "score": 0.5171201229095459
+        },
+        {
+          "file": "Agentic Test Workflows.md",
+          "score": 0.5166074921722724
+        },
+        {
+          "file": "Autonomous Coding Agents.md",
+          "score": 0.5142338871955872
+        },
+        {
+          "file": "AI Testing Tool Landscape 2026.md",
+          "score": 0.4816276431083679
+        },
+        {
+          "file": "AI Testing Tool Landscape 2026.md",
+          "score": 0.4782470179648993
+        },
+        {
+          "file": "Agent Security Tools.md",
+          "score": 0.4708172082901001
+        },
+        {
+          "file": "Agent Security Tools.md",
+          "score": 0.4695483446121216
+        },
+        {
+          "file": "Implementing Model Context Protocol (MCP) in Agentic Test Orchestration.docx",
+          "score": 0.4639701843261719
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.9999999999999999,
+      "expected_keywords": [
+        "3,247",
+        "3247"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "3,247"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "finnova-06-flake-rate",
+      "category": "metrics",
+      "prompt": "What was the flake rate before and after the engagement?",
+      "answer": "The provided context does not give specific numbers for the flake rate before and after the engagement. It discusses the baseline industry flake rate (around 15%) and the goal of pushing the Playwright suite flake rate under 1% with deterministic web‑first assertions, but it does not present the actual pre‑ and post‑engagement figures.",
+      "sources": [
+        {
+          "file": "Flakiness Reduction.md",
+          "score": 0.23726601974570682
+        },
+        {
+          "file": "Headless Preview Suspends requestAnimationFrame.md",
+          "score": 0.20344281196594238
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.18636095523834229
+        },
+        {
+          "file": "Verification Discipline.md",
+          "score": 0.18262105091684788
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.16919077932834625
+        },
+        {
+          "file": "Local Video Dubbing Pipeline.md",
+          "score": 0.1688503623008728
+        },
+        {
+          "file": "Universal Video Downloader App.md",
+          "score": 0.1523532122373581
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.1514730453491211
+        },
+        {
+          "file": "AI Chatbot UI Automation.md",
+          "score": 0.14848968991698708
+        },
+        {
+          "file": "AI-Driven E2E Site Audit.md",
+          "score": 0.14680407681416652
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.0,
+      "expected_keywords": [
+        "48%",
+        "2.7%"
+      ],
+      "keyword_passed": false,
+      "keyword_matched": [],
+      "accept_refusal": true,
+      "passed": false
+    },
+    {
+      "id": "finnova-07-customers",
+      "category": "facts",
+      "prompt": "How many retail customers does FinNova Bank serve?",
+      "answer": "FinNova Bank serves 2.4 million retail customers.",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.5519481239380728
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.4354789333964697
+        },
+        {
+          "file": "OpenAI-Compatible Multi-Provider LLM Client.md",
+          "score": 0.2507267295447928
+        },
+        {
+          "file": "OpenAI-Compatible Multi-Provider LLM Client.md",
+          "score": 0.24830210208892822
+        },
+        {
+          "file": "INDEX.md",
+          "score": 0.23874883353710175
+        },
+        {
+          "file": "Scaling Discovery Breadth, Not Gates.md",
+          "score": 0.23413381075061535
+        },
+        {
+          "file": "Local Model Selection for Strix Halo 128GB.md",
+          "score": 0.21293115615844727
+        },
+        {
+          "file": "Search-Capable vs Firehose Job APIs.md",
+          "score": 0.20824358116128594
+        },
+        {
+          "file": "Job Application Automation.md",
+          "score": 0.20230403542518616
+        },
+        {
+          "file": "IAM and CIAM Testing.md",
+          "score": 0.2014041692018509
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.9999999999999997,
+      "expected_keywords": [
+        "2.4 million",
+        "2,400,000"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "2.4 million"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "finnova-08-transaction-volume",
+      "category": "facts",
+      "prompt": "What is the annual transaction volume of FinNova Bank?",
+      "answer": "FinNova Bank handles approximately $48 billion in annual transaction volume.",
+      "sources": [
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.4825913330803746
+        },
+        {
+          "file": "finnova_case_study.docx",
+          "score": 0.3967646185440308
+        },
+        {
+          "file": "Scaling Discovery Breadth, Not Gates.md",
+          "score": 0.19235267088695374
+        },
+        {
+          "file": "INDEX.md",
+          "score": 0.18999022245407104
+        },
+        {
+          "file": "OpenAI-Compatible Multi-Provider LLM Client.md",
+          "score": 0.18421155214309692
+        },
+        {
+          "file": "OpenAI-Compatible Multi-Provider LLM Client.md",
+          "score": 0.18243316621385153
+        },
+        {
+          "file": "IAM and CIAM Testing.md",
+          "score": 0.1720799058675766
+        },
+        {
+          "file": "Job Application Automation.md",
+          "score": 0.16494303941726685
+        },
+        {
+          "file": "Job Application Automation.md",
+          "score": 0.16300955414772034
+        },
+        {
+          "file": "01_Senior_QA_Automation_AI_Assisted_Testing_Handbook.docx",
+          "score": 0.16145965456962585
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.9584503045206471,
+      "expected_keywords": [
+        "$48 billion",
+        "48B"
+      ],
+      "keyword_passed": false,
+      "keyword_matched": [],
+      "accept_refusal": false,
+      "passed": false
+    },
+    {
+      "id": "concept-01-test-isolation",
+      "category": "best-practices",
+      "prompt": "What are the best practices for test data isolation in Playwright?",
+      "answer": "The best practices for test data isolation in Playwright include:\n\n1. **Dynamic API-driven seeding**: Every test suite creates its own workspaces, users, and contexts via REST/GraphQL, appending a cryptographic seed or timestamp (e.g., `test-uuid-${Date.now()}`) to every name so records cannot collide.\n\n2. **Isolated browser context pooling**: Each Playwright worker runs in its own browser context. Cookies, localStorage, and IndexedDB are scoped to the context, preventing bleed between parallel tests.\n\n3. **Fixture and cleanup contracts**: Any fixture that creates state must register a teardown, preferably via Playwright’s `auto` fixture pattern so cleanup runs even on test failure. Use API DELETE rather than UI flows for teardown speed.\n\nThese practices isolate data per test, preventing race conditions and flakiness that arise from shared state.",
+      "sources": [
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.6991202414560187
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.65685596039462
+        },
+        {
+          "file": "Test Data Isolation.md",
+          "score": 0.6030310865603625
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.5759673967380894
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.5651466846466064
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.5534912347793579
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.5463968515396118
+        },
+        {
+          "file": "02_Playwright_TypeScript_Framework_Architecture.docx",
+          "score": 0.544197678565979
+        },
+        {
+          "file": "04_MCP_Servers_Agentic_Testing_SDET_Guide.docx",
+          "score": 0.5385661125183105
+        },
+        {
+          "file": "AI Chatbot UI Automation.md",
+          "score": 0.5377922929649188
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 1.0,
+      "expected_keywords": [
+        "dedicated database",
+        "API seeding",
+        "context",
+        "isolation",
+        "fixtures"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "context",
+        "isolation"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    },
+    {
+      "id": "concept-02-prompt-injection-types",
+      "category": "best-practices",
+      "prompt": "What are the main categories of prompt injection attacks that QA should test for?",
+      "answer": "Based on the provided context, the main categories of prompt injection attacks that QA should test for are:\n\n1. **Direct** - User text overrides system prompt.\n2. **Indirect (retrieved)** - Malicious instructions hidden in PDFs, scraped pages, emails the agent reads.\n3. **Indirect (uploaded file)** - Same payload, hidden in a user-uploaded `.txt` / `.pdf` / `.docx` / image alt-text the chatbot parses.\n4. **Data extraction** - Roleplay/reverse psychology coaxes training data or secrets.\n5. **Tool-call hijack** - Crafted input causes an agentic system to call sensitive tools with attacker args.\n6. **Crescendo / multi-turn** - Each turn alone is benign; escalation across N turns lands the unsafe ask.\n7. **Dual-use safety framing** - Harmful ask reframed as protective.\n8. **Homoglyph / encoded** - Cyrillic look-alikes, base64, ROT13, zero-width chars bypass substring filters.\n\nThese categories cover various ways attackers can manipulate the model's behavior through prompt injection.",
+      "sources": [
+        {
+          "file": "SAST and DAST for AI.md",
+          "score": 0.6084322929382324
+        },
+        {
+          "file": "Prompt Injection Testing.md",
+          "score": 0.5407815849315185
+        },
+        {
+          "file": "Agent Security Tools.md",
+          "score": 0.5309467315673828
+        },
+        {
+          "file": "03_LLM_Evaluation_RAG_Testing_QA_Guide.docx",
+          "score": 0.5249987840652466
+        },
+        {
+          "file": "OWASP LLM Top 10.md",
+          "score": 0.5082066059112549
+        },
+        {
+          "file": "03_LLM_Evaluation_RAG_Testing_QA_Guide.docx",
+          "score": 0.5051217970179449
+        },
+        {
+          "file": "OWASP LLM Top 10.md",
+          "score": 0.4937470555305481
+        },
+        {
+          "file": "03_LLM_Evaluation_RAG_Testing_QA_Guide.docx",
+          "score": 0.48529481887817383
+        },
+        {
+          "file": "Agent Security Tools.md",
+          "score": 0.4666885733604431
+        },
+        {
+          "file": "Chatbot Adversarial Test Corpus.md",
+          "score": 0.4643038809299469
+        }
+      ],
+      "contexts_count": 10,
+      "faithfulness": 1.0,
+      "relevancy": 0.9999999999999997,
+      "expected_keywords": [
+        "direct",
+        "indirect",
+        "jailbreak",
+        "extraction",
+        "tool"
+      ],
+      "keyword_passed": true,
+      "keyword_matched": [
+        "direct",
+        "indirect",
+        "extraction",
+        "tool"
+      ],
+      "accept_refusal": false,
+      "passed": true
+    }
+  ]
+}

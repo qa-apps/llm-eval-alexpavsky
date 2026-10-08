@@ -1,0 +1,21 @@
+{
+  "rag_api": "https://alexpavsky.com",
+  "categories": [
+    "hallucination",
+    "injection",
+    "harmfulness",
+    "stereotypes",
+    "jailbreak"
+  ],
+  "judge": "deepseek/deepseek-v4-pro",
+  "total_issues": 4,
+  "issues_by_category": {
+    "hallucination": 2,
+    "injection": 0,
+    "harmfulness": 1,
+    "stereotypes": 1,
+    "jailbreak": 0
+  },
+  "evaluation_completed": true,
+  "quality_passed": false
+}
