@@ -1,5 +1,5 @@
 import type { LanguageModel } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
+import { createRequire } from "node:module";
 import { AgentRole, type AgentInput, type JudgeAgentAdapter, type JudgeResult } from "@langwatch/scenario";
 
 type CriterionDecision = {
@@ -13,16 +13,14 @@ type StrictJudgePayload = {
   reasoning: string;
 };
 
-function localConfig() {
-  const baseURL = process.env.LOCAL_LLM_BASE_URL;
-  if (!baseURL) throw new Error("Scenario needs the local evaluator. Set LOCAL_LLM_BASE_URL.");
-  const apiKey = process.env.LOCAL_LLM_API_KEY;
-  if (!apiKey) throw new Error("Scenario needs the local gateway key. Set LOCAL_LLM_API_KEY.");
+function judgeConfig() {
+  const baseURL = "https://api.deepseek.com/v1";
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error("Scenario needs DEEPSEEK_API_KEY.");
   return {
     apiKey,
-    baseURL: baseURL.replace(/\/$/, ""),
-    model: process.env.SCENARIO_JUDGE_MODEL || "gpt-oss:120b",
-    upstreamModel: process.env.LOCAL_LLM_UPSTREAM_MODEL || "gpt-oss:120b",
+    baseURL,
+    model: process.env.SCENARIO_JUDGE_MODEL || "deepseek-v4-pro",
   };
 }
 
@@ -32,44 +30,53 @@ function localConfig() {
  * This is the *evaluator* model and is completely separate from the agent under
  * test (the deployed voice assistant). It needs solid tool-calling (the judge
  * emits a structured finish_test verdict). Preference order picks the key that
- * CI and developer eval runs use the local BossGame/Ollama gateway only.
+ * CI and developer eval runs use the DeepSeek cloud judge.
  * Override the model id with SCENARIO_JUDGE_MODEL.
  *
  * OpenAI-compatible providers use the Chat Completions API (`.chat()`): the AI
  * SDK default (Responses API) is not available on every compatible endpoint.
  */
 export function judgeModel(): LanguageModel {
-  const config = localConfig();
+  const config = judgeConfig();
+  // Scenario uses AI SDK 6 (LanguageModel v3). Resolve its compatible OpenAI
+  // provider, rather than the top-level AI SDK 7 provider (v4).
+  const scenarioRequire = createRequire(require.resolve("@langwatch/scenario"));
+  const { createOpenAI } = scenarioRequire("@ai-sdk/openai") as {
+    createOpenAI: (settings: { apiKey: string; baseURL: string; headers: Record<string, string> }) => {
+      chat: (model: string) => LanguageModel;
+    };
+  };
   const p = createOpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
-    headers: {
-      "X-LLM-Job-ID": process.env.GITHUB_RUN_ID || "local-scenario",
-      "X-LLM-Model": config.upstreamModel,
-    },
+    headers: { "X-QA-Run-ID": process.env.GITHUB_RUN_ID || "scenario" },
   });
-  return p.chat(config.model);
+  const model = p.chat(config.model);
+  if (typeof model !== "string" && model.specificationVersion !== "v3") {
+    throw new Error("Scenario requires an AI SDK v3 DeepSeek provider");
+  }
+  return model;
 }
 
 export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeResult {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   const payload = JSON.parse(cleaned) as StrictJudgePayload;
   if (!Array.isArray(payload.results) || payload.results.length !== criteria.length) {
-    throw new Error(`Local judge returned ${payload.results?.length ?? 0}/${criteria.length} criterion decisions`);
+    throw new Error(`Cloud judge returned ${payload.results?.length ?? 0}/${criteria.length} criterion decisions`);
   }
 
   const byIndex = new Map<number, CriterionDecision>();
   for (const decision of payload.results) {
     if (!Number.isInteger(decision.index) || typeof decision.met !== "boolean") {
-      throw new Error("Local judge returned an invalid criterion decision");
+      throw new Error("Cloud judge returned an invalid criterion decision");
     }
-    if (byIndex.has(decision.index)) throw new Error("Local judge returned a duplicate criterion index");
+    if (byIndex.has(decision.index)) throw new Error("Cloud judge returned a duplicate criterion index");
     byIndex.set(decision.index, decision);
   }
 
   const decisions = criteria.map((_, index) => {
     const decision = byIndex.get(index + 1);
-    if (!decision) throw new Error(`Local judge omitted criterion ${index + 1}`);
+    if (!decision) throw new Error(`Cloud judge omitted criterion ${index + 1}`);
     return decision;
   });
   const metCriteria = criteria.filter((_, index) => decisions[index].met);
@@ -80,19 +87,19 @@ export function parseStrictJudgePayload(raw: string, criteria: string[]): JudgeR
 
   return {
     success: unmetCriteria.length === 0,
-    reasoning: `${payload.reasoning || "Local judge evaluation"}\n${details}`,
+    reasoning: `${payload.reasoning || "Cloud judge evaluation"}\n${details}`,
     metCriteria,
     unmetCriteria,
   };
 }
 
-export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
+export function strictCloudJudge(criteria: string[]): JudgeAgentAdapter {
   return {
-    name: "strict-local-gpt-oss-judge",
+    name: "strict-deepseek-judge",
     role: AgentRole.JUDGE,
     criteria,
     call: async (input: AgentInput) => {
-      const config = localConfig();
+      const config = judgeConfig();
       const transcript = JSON.stringify(input.messages);
       const prompt = [
         "Evaluate the transcript against every criterion.",
@@ -115,8 +122,7 @@ export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
             headers: {
               authorization: `Bearer ${config.apiKey}`,
               "content-type": "application/json",
-              "X-LLM-Job-ID": process.env.GITHUB_RUN_ID || "local-scenario",
-              "X-LLM-Model": config.upstreamModel,
+              "X-QA-Run-ID": process.env.GITHUB_RUN_ID || "scenario",
             },
             body: JSON.stringify({
               model: config.model,
@@ -125,15 +131,16 @@ export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
                 { role: "user", content: prompt },
               ],
               temperature: 0,
-              max_tokens: 1200,
+              max_tokens: 4096,
+              reasoning_effort: "low",
               response_format: { type: "json_object" },
               stream: false,
             }),
           });
-          if (!response.ok) throw new Error(`local judge HTTP ${response.status}: ${await response.text()}`);
+          if (!response.ok) throw new Error(`cloud judge HTTP ${response.status}: ${await response.text()}`);
           const data: any = await response.json();
           const content = data?.choices?.[0]?.message?.content;
-          if (typeof content !== "string" || !content.trim()) throw new Error("Local judge returned no content");
+          if (typeof content !== "string" || !content.trim()) throw new Error("Cloud judge returned no content");
           return parseStrictJudgePayload(content, criteria);
         } catch (error) {
           lastError = error;
@@ -146,5 +153,5 @@ export function strictLocalJudge(criteria: string[]): JudgeAgentAdapter {
 
 /** True when at least one evaluator LLM key is present. */
 export function hasJudgeModel(): boolean {
-  return Boolean(process.env.LOCAL_LLM_BASE_URL && process.env.LOCAL_LLM_API_KEY);
+  return Boolean(process.env.DEEPSEEK_API_KEY);
 }

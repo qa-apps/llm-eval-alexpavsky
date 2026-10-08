@@ -3,7 +3,7 @@ import { parseStrictJudgePayload } from "../support/scenarioModel";
 
 const criteria = ["understands the question", "answers clearly", "uses plain speech"];
 
-describe("strict local judge contract", () => {
+describe("strict cloud judge contract", () => {
   it("derives success only when every criterion passes", () => {
     const result = parseStrictJudgePayload(
       JSON.stringify({

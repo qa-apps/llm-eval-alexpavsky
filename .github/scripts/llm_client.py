@@ -30,14 +30,6 @@ import urllib.request
 # all listed providers' models as of 2026-05.
 _PROVIDERS = [
     {
-        "name": "ollama",
-        "key_env": "LOCAL_LLM_API_KEY",
-        "base_url_env": "LOCAL_LLM_BASE_URL",
-        "base_url": "http://127.0.0.1:11434/v1",
-        "model_env": "LOCAL_LLM_MODEL",
-        "model": "gpt-oss:120b",
-    },
-    {
         "name": "opencode-go",
         "key_env": "OPENCODE_API_KEY",
         "opt_in_env": "ENABLE_OPENCODE_PROVIDER",
@@ -45,6 +37,20 @@ _PROVIDERS = [
         "model_env": "OPENCODE_MODEL",
         "model": "kimi-k2.7-code",
         "temperature": 1.0,
+    },
+    {
+        "name": "deepseek",
+        "key_env": "DEEPSEEK_API_KEY",
+        "base_url": "https://api.deepseek.com/v1",
+        "model_env": "DEEPSEEK_MODEL",
+        "model": "deepseek-v4-pro",
+    },
+    {
+        "name": "together",
+        "key_env": "TOGETHER_API_KEY",
+        "base_url": "https://api.together.xyz/v1",
+        "model_env": "TOGETHER_MODEL",
+        "model": "deepseek-ai/DeepSeek-V4-Flash-0731",
     },
     {
         "name": "groq",
@@ -100,7 +106,7 @@ def _should_rotate(err_text: str) -> bool:
 
 
 def _post(url: str, headers: dict, body: bytes, timeout: int) -> dict:
-    max_wait = max(0, int(os.environ.get("LOCAL_LLM_PRIORITY_MAX_WAIT_SEC", "0")))
+    max_wait = max(0, int(os.environ.get("LLM_PRIORITY_MAX_WAIT_SEC", "0")))
     deadline = time.monotonic() + max_wait
     while True:
         req = urllib.request.Request(url, data=body, headers=headers, method="POST")
@@ -197,22 +203,20 @@ def chat(
           "errors": list[str],             # per-provider error strings
         }
     """
-    timeout = timeout or int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "180"))
+    timeout = timeout or int(os.environ.get("LLM_TIMEOUT_SEC", "180"))
     errors: list[str] = []
     provider_mode = os.environ.get("LLM_PROVIDER_MODE", "").strip().lower()
-    if os.environ.get("LOCAL_LLM_BASE_URL") or provider_mode == "local-only":
-        providers = _PROVIDERS[:1]
+    if provider_mode == "local-only":
+        providers = []
     elif provider_mode == "opencode-only":
         providers = [p for p in _PROVIDERS if p["name"] == "opencode-go"]
     else:
-        providers = _PROVIDERS[1:]
+        providers = _PROVIDERS
     for prov in providers:
         opt_in_env = prov.get("opt_in_env")
         if opt_in_env and os.environ.get(opt_in_env, "").lower() != "true":
             continue
         key = os.environ.get(prov["key_env"], "").strip()
-        if prov["name"] == "ollama" and os.environ.get("LOCAL_LLM_BASE_URL"):
-            key = key or "ollama"
         if not key:
             continue
 
@@ -236,6 +240,8 @@ def chat(
         payload = _build_payload(
             model, messages, system, tools, max_tokens, provider_temperature
         )
+        if prov["name"] == "deepseek":
+            payload["reasoning_effort"] = "low"
         body = json.dumps(payload).encode()
 
         try:
@@ -279,12 +285,10 @@ def chat(
 def configured_providers() -> list[str]:
     """List names of providers whose API key is set. Useful for diagnostics."""
     provider_mode = os.environ.get("LLM_PROVIDER_MODE", "").strip().lower()
-    if os.environ.get("LOCAL_LLM_BASE_URL") or provider_mode == "local-only":
-        return ["ollama"]
     providers = (
+        [] if provider_mode == "local-only" else
         [p for p in _PROVIDERS if p["name"] == "opencode-go"]
-        if provider_mode == "opencode-only"
-        else _PROVIDERS[1:]
+        if provider_mode == "opencode-only" else _PROVIDERS
     )
     return [
         p["name"]

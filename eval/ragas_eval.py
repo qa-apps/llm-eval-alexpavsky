@@ -3,20 +3,20 @@
 ragas_eval.py — Ragas-based RAG quality evaluation for alexpavsky.com.
 
 Runs golden questions through the RAG API, then evaluates each answer with
-Ragas metrics (faithfulness, answer_relevancy) using local GPT-OSS as the LLM
-judge and local embeddings.
+Ragas metrics (faithfulness, answer_relevancy) using a cloud LLM judge and
+small CPU embeddings.
 
 Designed for both local development and nightly CI runs.
 
 Usage (local):
     pip install -r eval/requirements.txt
-    LOCAL_LLM_BASE_URL=http://127.0.0.1:11434/v1 python eval/ragas_eval.py
+    DEEPSEEK_API_KEY=... python eval/ragas_eval.py
 
 Usage (CI):
     See .github/workflows/ragas-nightly.yml
 
 Environment variables:
-    LOCAL_LLM_BASE_URL Optional. Local OpenAI-compatible judge endpoint.
+    DEEPSEEK_API_KEY   Cloud judge key. TOGETHER_API_KEY is an optional fallback.
     RAG_API_URL        Optional. Default: http://localhost:8001
     MIN_FAITHFULNESS   Optional. Default: 0.50. Build fails if avg below.
     MIN_RELEVANCY      Optional. Default: 0.35. Build fails if avg below.
@@ -45,8 +45,7 @@ RESULTS_DIR = ROOT / "eval" / "results"
 
 RAG_API_URL = os.environ.get("RAG_API_URL", "http://localhost:8001").rstrip("/")
 
-# The judge and embedding provider are configured by rotating_llm.py and point
-# to the local bosgame Ollama service in CI.
+# The cloud judge is configured by rotating_llm.py; embeddings run on CI CPU.
 
 MIN_FAITHFULNESS = float(os.environ.get("MIN_FAITHFULNESS", "0.50"))
 MIN_RELEVANCY = float(os.environ.get("MIN_RELEVANCY", "0.35"))
@@ -211,7 +210,7 @@ def main() -> int:
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Local GPT-OSS judge is not configured. Set LOCAL_LLM_BASE_URL and LOCAL_LLM_MODEL.")
+        fail("Cloud judge is not configured. Set DEEPSEEK_API_KEY or TOGETHER_API_KEY.")
     log(f"Judge providers available: {len(providers)}")
     for p in providers:
         log(f"  - {p['name']:20s} / {p['model']}")
@@ -305,7 +304,7 @@ def main() -> int:
     log("  Loading Ragas + LangChain (first run can be slow)...")
 
     try:
-        from langchain_core.embeddings import Embeddings
+        from langchain_huggingface import HuggingFaceEmbeddings
         from ragas import evaluate, EvaluationDataset, SingleTurnSample
         from ragas.metrics import Faithfulness, ResponseRelevancy
         from ragas.llms import LangchainLLMWrapper
@@ -314,47 +313,24 @@ def main() -> int:
     except ImportError as e:
         fail(f"Missing dependency: {e}. Run: pip install -r eval/requirements.txt")
 
-    # Build the local judge. The wrapper shape is retained for compatibility
-    # with Ragas, but the configured provider list contains bosgame only.
-    from rotating_llm import RotatingJudgeLLM, lifecycle_headers
+    from rotating_llm import RotatingJudgeLLM
     judge_llm = RotatingJudgeLLM(
         providers=providers,
         temperature=0,
-        timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
+        timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
     )
     primary_name = providers[0]["name"]
     primary_model = providers[0]["model"]
-    log(f"  Judge: local ({len(providers)} configured provider)")
+    log(f"  Judge: cloud ({len(providers)} configured provider)")
     log(f"  Primary: {primary_name} / {primary_model}")
     fallbacks = providers[1:]
 
-    embedding_model = os.environ.get("LOCAL_EMBEDDING_MODEL", "qwen3-embedding:4b")
-    embedding_root = os.environ.get("OLLAMA_BASE_URL", "").rstrip("/")
-    if not embedding_root:
-        embedding_root = providers[0]["base_url"].removesuffix("/v1")
-
-    class OllamaNativeEmbeddings(Embeddings):
-        def _embed(self, texts: list[str]) -> list[list[float]]:
-            response = requests.post(
-                f"{embedding_root}/api/embed",
-                headers={
-                    "Authorization": f"Bearer {providers[0]['api_key']}",
-                    **lifecycle_headers(embedding_model),
-                },
-                json={"model": embedding_model, "input": texts, "keep_alive": -1},
-                timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
-            )
-            response.raise_for_status()
-            return response.json()["embeddings"]
-
-        def embed_documents(self, texts: list[str]) -> list[list[float]]:
-            return self._embed(texts)
-
-        def embed_query(self, text: str) -> list[float]:
-            return self._embed([text])[0]
-
-    judge_embeds = OllamaNativeEmbeddings()
-    log(f"  Embeddings: {embedding_model} via {embedding_root}/api/embed")
+    embedding_model = os.environ.get("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+    judge_embeds = HuggingFaceEmbeddings(
+        model_name=embedding_model,
+        encode_kwargs={"normalize_embeddings": True},
+    )
+    log(f"  Embeddings: {embedding_model} on CI CPU")
 
     ragas_llm = LangchainLLMWrapper(judge_llm)
     ragas_embeds = LangchainEmbeddingsWrapper(judge_embeds)
@@ -389,7 +365,7 @@ def main() -> int:
             llm=ragas_llm,
             embeddings=ragas_embeds,
             run_config=RunConfig(
-                timeout=int(os.environ.get("LOCAL_LLM_TIMEOUT_SEC", "600")),
+                timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
                 max_retries=2,
                 max_workers=1,
             ),

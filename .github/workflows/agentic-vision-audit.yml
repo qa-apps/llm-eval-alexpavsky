@@ -3,8 +3,7 @@ name: AlexPavsky Daily Audit
 on:
   workflow_dispatch:
   schedule:
-    # 9:15 AM America/New_York, after the overnight text-model queue. The
-    # MacBook is not involved; only the Bosgame runner and local Vision model.
+    # 9:15 AM America/New_York, after the overnight text-model queue.
     - cron: '15 13 * * *'
     - cron: '15 14 * * *'
 
@@ -38,7 +37,7 @@ jobs:
   vision-audit:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       contents: write
@@ -47,74 +46,41 @@ jobs:
       PAGES_DIR: ${{ github.workspace }}/daily-audit-pages
       SITE_DIR: ${{ github.workspace }}/daily-audit-site
       AUDIT_OUTPUT_DIR: ${{ github.workspace }}/daily-audit-runs/${{ github.run_id }}/vision-audit
-      AUDIT_DEPS_DIR: ${{ github.workspace }}/.daily-audit-deps/playwright-1.58.2
+      AUDIT_DEPS_DIR: ${{ github.workspace }}/.daily-audit-deps/playwright-1.61.0
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
-      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: ubuntu24.04-x64
-      # Every Vision request goes through the background lifecycle endpoint so
-      # the audit waits for interactive work instead of replacing its model.
-      OLLAMA_BASE_URL: http://127.0.0.1:11445
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-      LOCAL_LLM_JOB_ID: ${{ github.run_id }}
-      VISION_MODEL: qwen3-vl-30b-a3b-screen:latest
     steps:
-      - name: Bootstrap source without marketplace actions
+      - name: Check out audit source
+        uses: actions/checkout@v4
+        with:
+          path: daily-audit-source
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Playwright and Chromium
         id: bootstrap
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
-          AUTH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          if [[ -d "$REPO_DIR/.git" ]]; then
-            git -C "$REPO_DIR" remote set-url origin "$AUTH_URL"
-            git -C "$REPO_DIR" fetch --depth 1 origin "$GITHUB_SHA"
-          else
-            mkdir -p "$REPO_DIR"
-            git clone --filter=blob:none --no-checkout "$AUTH_URL" "$REPO_DIR"
-            git -C "$REPO_DIR" fetch --depth 1 origin "$GITHUB_SHA"
-          fi
-          git -C "$REPO_DIR" checkout --detach "$GITHUB_SHA"
-
-          NODE_BIN_DIR=$(find "${RUNNER_TOOL_CACHE:-/nonexistent}/node" -type d -path '*/x64/bin' 2>/dev/null | sort -V | tail -1 || true)
-          if [[ -z "$NODE_BIN_DIR" || ! -x "$NODE_BIN_DIR/node" ]]; then
-            RUNNER_ROOT=$(dirname "$(dirname "$RUNNER_TEMP")")
-            NODE_BIN_DIR="$RUNNER_ROOT/externals/node24/bin"
-          fi
-          echo "$NODE_BIN_DIR" >> "$GITHUB_PATH"
-          export PATH="$NODE_BIN_DIR:$PATH"
           node --version
+          npm install --prefix "$AUDIT_DEPS_DIR" --no-audit --no-fund --ignore-scripts @playwright/test@1.61.0
+          npm exec --prefix "$AUDIT_DEPS_DIR" -- playwright install --with-deps chromium
 
-          mkdir -p "$AUDIT_DEPS_DIR" "$GITHUB_WORKSPACE/.npm-home" "$GITHUB_WORKSPACE/.npm-cache"
-          export HOME="$GITHUB_WORKSPACE/.npm-home"
-          export npm_config_cache="$GITHUB_WORKSPACE/.npm-cache"
-          if command -v npm >/dev/null 2>&1; then
-            npm install --prefix "$AUDIT_DEPS_DIR" --no-audit --no-fund --ignore-scripts @playwright/test@1.58.2
-            npm exec --prefix "$AUDIT_DEPS_DIR" -- playwright install chromium
-          else
-            RUNNER_ROOT=$(dirname "$(dirname "$RUNNER_TEMP")")
-            NPM_CLI="$RUNNER_ROOT/externals/node24/lib/node_modules/npm/bin/npm-cli.js"
-            node "$NPM_CLI" install --prefix "$AUDIT_DEPS_DIR" --no-audit --no-fund --ignore-scripts @playwright/test@1.58.2
-            node "$NPM_CLI" exec --prefix "$AUDIT_DEPS_DIR" -- playwright install chromium
-          fi
-
-      - name: Wait for local Vision model
+      - name: Require a cloud Vision API key
         id: model
         continue-on-error: true
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
         shell: bash
         run: |
-          for attempt in {1..40}; do
-            if curl --fail --silent --max-time 10 \
-              -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-              -H "X-LLM-Job-ID: $LOCAL_LLM_JOB_ID" \
-              -H "X-LLM-Model: $VISION_MODEL" \
-              "$OLLAMA_BASE_URL/api/tags" | \
-              python3 -c 'import json,sys; wanted=sys.argv[1]; data=json.load(sys.stdin); raise SystemExit(0 if any(m.get("name") == wanted for m in data.get("models", [])) else 1)' "$VISION_MODEL"; then
-              exit 0
-            fi
-            sleep 15
-          done
-          echo "Vision model was not available after 10 minutes."
-          exit 1
+          if [[ -z "$GEMINI_API_KEY" && -z "$DEEPSEEK_API_KEY" ]]; then
+            echo "GEMINI_API_KEY or DEEPSEEK_API_KEY is required for the Vision audit."
+            exit 1
+          fi
 
       - name: Run required UI, AI Chat, Voice, Challenge, and Vision journeys
         id: audit
@@ -122,7 +88,9 @@ jobs:
         continue-on-error: true
         env:
           BASE_URL: https://www.alexpavsky.com
-          PLAYWRIGHT_PACKAGE_PATH: ${{ github.workspace }}/.daily-audit-deps/playwright-1.58.2/node_modules/@playwright/test
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PLAYWRIGHT_PACKAGE_PATH: ${{ github.workspace }}/.daily-audit-deps/playwright-1.61.0/node_modules/@playwright/test
           VISION_AUDIT_OUTPUT_DIR: ${{ env.AUDIT_OUTPUT_DIR }}
         shell: bash
         run: |
@@ -163,11 +131,30 @@ jobs:
           if report.get("status") not in {"passed", "failed"} or report.get("operational_error"):
               raise SystemExit("Daily Audit did not finish cleanly")
           provenance = report.get("model_provenance") or {}
-          if provenance.get("execution") != "local-only" or provenance.get("cloud_llm_calls") != 0:
-              raise SystemExit("Daily Audit evaluator provenance is not local-only")
+          if (
+              provenance.get("execution") != "cloud-api"
+              or provenance.get("local_llm_calls") != 0
+              or provenance.get("model") != report.get("model")
+          ):
+              raise SystemExit("Daily Audit evaluator provenance is not cloud Vision")
+          valid_models = {
+              "Google Gemini": "gemini-2.5-flash",
+              "DeepSeek": "deepseek-flash",
+          }
+          provider_calls = provenance.get("provider_calls") or {}
+          if (
+              set(provider_calls) != set(valid_models)
+              or sum(provider_calls.values()) != len(expected)
+              or not set(provenance.get("cloud_api_keys_used") or []).issubset({"GEMINI_API_KEY", "DEEPSEEK_API_KEY"})
+              or not provenance.get("cloud_api_keys_used")
+              or int(provenance.get("cloud_api_requests") or 0) < len(expected)
+          ):
+              raise SystemExit("Daily Audit cloud provider ledger is incomplete")
           usage = report.get("model_usage") or {}
-          if usage.get("calls") != len(expected) or provenance.get("local_llm_calls") != len(expected):
-              raise SystemExit("Daily Audit is missing local Vision decisions")
+          if usage.get("calls") != len(expected) or provenance.get("cloud_llm_calls") != len(expected):
+              raise SystemExit("Daily Audit is missing cloud Vision decisions")
+          if not usage.get("prompt_tokens") or not usage.get("completion_tokens") or not usage.get("total_latency_ms"):
+              raise SystemExit("Daily Audit is missing Vision usage or latency")
           required = (
               "test_case_name", "objective", "expected_result", "actual_result",
               "summary", "verdict", "browser_evidence",
@@ -179,12 +166,19 @@ jobs:
               screenshot = Path(str(step.get("screenshot") or ""))
               if not screenshot.is_file():
                   raise SystemExit(f"{step.get('test_case_id')} screenshot is missing: {screenshot}")
-              if step.get("llm_execution") != "local-only" or step.get("llm_provider") != "Ollama":
+              if (
+                  step.get("llm_execution") != "cloud-api"
+                  or valid_models.get(step.get("llm_provider")) != step.get("llm_model")
+                  or not step.get("model_latency_ms")
+              ):
                   raise SystemExit(f"{step.get('test_case_id')} has invalid model provenance")
+          for provider, count in provider_calls.items():
+              if count != sum(step.get("llm_provider") == provider for step in steps):
+                  raise SystemExit(f"Daily Audit provider count is wrong for {provider}")
           video = Path(str(report.get("video") or ""))
           if not video.is_file():
               raise SystemExit(f"Daily Audit video is missing: {video}")
-          print(f"Validated {len(steps)} Daily Audit cases, screenshots, local decisions, and video")
+          print(f"Validated {len(steps)} Daily Audit cases, screenshots, cloud Vision decisions, and video")
           PY
 
       - name: Build and publish detailed Daily Audit UI
@@ -259,10 +253,3 @@ jobs:
             [[ "$outcome" == "success" ]] || failed=1
           done
           exit "$failed"
-
-      - name: Release background model lease
-        if: always()
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $LOCAL_LLM_JOB_ID" \
-            http://127.0.0.1:11443/release/background || true

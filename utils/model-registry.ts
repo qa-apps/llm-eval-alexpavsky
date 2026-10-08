@@ -19,7 +19,7 @@ import * as https from 'https';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ModelTier = 'S' | 'M' | 'H';
-export type ProviderName = 'ollama' | 'groq' | 'openrouter' | 'huggingface' | 'gemini' | 'cerebras' | 'sambanova' | 'mistral';
+export type ProviderName = 'ollama' | 'deepseek' | 'groq' | 'openrouter' | 'huggingface' | 'gemini' | 'cerebras' | 'sambanova' | 'mistral';
 
 export interface ModelEntry {
   id: string;
@@ -41,10 +41,15 @@ export interface ResolvedProvider {
 }
 
 function resolveLocalProvider(): ResolvedProvider | null {
+  if (process.env.ALLOW_LOCAL_QA !== '1') return null;
   const configuredBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OLLAMA_BASE_URL;
   if (!configuredBaseUrl) return null;
 
   const apiRoot = configuredBaseUrl.replace(/\/$/, '');
+  const endpoint = new URL(apiRoot);
+  if (!['127.0.0.1', 'localhost', '::1'].includes(endpoint.hostname)) return null;
+  const model = process.env.LOCAL_LLM_MODEL || 'qwen3.8:27b';
+  if (model.toLowerCase().includes('gpt-oss')) return null;
   const baseUrl = apiRoot.endsWith('/v1')
     ? `${apiRoot}/chat/completions`
     : `${apiRoot}/v1/chat/completions`;
@@ -52,12 +57,23 @@ function resolveLocalProvider(): ResolvedProvider | null {
 
   return {
     baseUrl,
-    model: process.env.LOCAL_LLM_MODEL || 'gpt-oss:120b',
+    model,
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     providerName: 'ollama',
+  };
+}
+
+function resolveDeepSeekProvider(): ResolvedProvider | null {
+  const key = process.env.DEEPSEEK_API_KEY;
+  if (!key) return null;
+  return {
+    baseUrl: 'https://api.deepseek.com/v1/chat/completions',
+    model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-pro',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    providerName: 'deepseek',
   };
 }
 
@@ -101,7 +117,6 @@ const STATIC_MODELS: ModelEntry[] = [
   { id: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B',     provider: 'groq', tier: 'M' },
   { id: 'qwen/qwen3-32b',                                label: 'Qwen 3 32B',               provider: 'groq', tier: 'H', coding: true },
   { id: 'moonshotai/kimi-k2-instruct',                   label: 'Kimi K2 Instruct',         provider: 'groq', tier: 'H' },
-  { id: 'openai/gpt-oss-120b',                           label: 'GPT-OSS 120B',             provider: 'groq', tier: 'H' },
   // OpenRouter (free)
   { id: 'google/gemma-3-27b-it:free',                    label: 'Gemma 3 27B',              provider: 'openrouter', free: true, tier: 'S' },
   { id: 'mistralai/mistral-small-3.1-24b-instruct:free', label: 'Mistral Small 24B',        provider: 'openrouter', free: true, tier: 'S' },
@@ -355,7 +370,7 @@ export async function getModelRegistry(forceRefresh = false): Promise<ModelEntry
   if (!forceRefresh) {
     const cached = readCache();
     if (cached) {
-      _inMemoryModels = cached.models;
+      _inMemoryModels = cached.models.filter((m) => !m.id.toLowerCase().includes('gpt-oss'));
       return _inMemoryModels;
     }
   }
@@ -374,6 +389,7 @@ export async function getModelRegistry(forceRefresh = false): Promise<ModelEntry
   const merged = [...STATIC_MODELS];
   const seenIds = new Set(merged.map((m) => m.id));
   for (const m of [...orModels, ...hfModels, ...groqModels, ...cerebrasModels, ...snModels, ...mistralModels]) {
+    if (m.id.toLowerCase().includes('gpt-oss')) continue;
     if (!seenIds.has(m.id)) {
       merged.push(m);
       seenIds.add(m.id);
@@ -399,6 +415,8 @@ export async function getModelRegistry(forceRefresh = false): Promise<ModelEntry
 export async function resolveBestProvider(
   preferTier: ModelTier = 'M',
 ): Promise<ResolvedProvider> {
+  const deepseek = resolveDeepSeekProvider();
+  if (deepseek) return deepseek;
   const local = resolveLocalProvider();
   if (local) return local;
 
@@ -541,6 +559,8 @@ export async function resolveBestProvider(
 export async function resolveAllProviders(
   preferTier: ModelTier = 'M',
 ): Promise<ResolvedProvider[]> {
+  const deepseek = resolveDeepSeekProvider();
+  if (deepseek) return [deepseek];
   const local = resolveLocalProvider();
   if (local) return [local];
 
@@ -599,6 +619,8 @@ export async function resolveAllProviders(
  * Useful for debugging / logging in CI.
  */
 export async function getProviderSummary(): Promise<string> {
+  const deepseek = resolveDeepSeekProvider();
+  if (deepseek) return `[model-registry] Provider summary:\n  deepseek     key=OK model=${deepseek.model}`;
   const local = resolveLocalProvider();
   if (local) {
     return `[model-registry] Provider summary:\n  ollama       endpoint=OK model=${local.model}`;

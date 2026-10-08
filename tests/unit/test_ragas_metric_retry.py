@@ -9,10 +9,10 @@ from eval.ragas_eval import merge_metric_rows, samples_missing_metrics
 
 
 class RagasMetricRetryTests(unittest.TestCase):
-    def test_local_judge_enforces_the_configured_output_limit(self):
+    def test_cloud_judge_enforces_the_configured_output_limit(self):
         source = Path("eval/rotating_llm.py").read_text(encoding="utf-8")
 
-        self.assertIn('os.environ.get("LOCAL_LLM_MAX_TOKENS", "2048")', source)
+        self.assertIn('os.environ.get("JUDGE_MAX_TOKENS", "4096")', source)
         self.assertIn("max_tokens=max_tokens", source)
 
     def test_retry_merges_only_valid_missing_metrics(self):

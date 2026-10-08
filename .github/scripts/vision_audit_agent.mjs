@@ -3,26 +3,23 @@
 import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
 const playwrightPackage = process.env.PLAYWRIGHT_PACKAGE_PATH || '@playwright/test';
-const { chromium } = require(playwrightPackage);
 
 const baseUrl = process.env.BASE_URL || 'https://www.alexpavsky.com';
-const ollamaBaseUrl = (process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434').replace(/\/$/, '');
-const model = process.env.VISION_MODEL || 'qwen3-vl-30b-a3b-screen:latest';
+const geminiBaseUrl = 'https://generativelanguage.googleapis.com/v1beta';
+const deepseekBaseUrl = 'https://api.deepseek.com';
+const geminiModel = 'gemini-2.5-flash';
+const deepseekModel = 'deepseek-flash';
 const outputDir = path.resolve(process.env.VISION_AUDIT_OUTPUT_DIR || 'vision-audit');
 const screenshotDir = path.join(outputDir, 'screenshots');
 const videoDir = path.join(outputDir, 'videos');
 const timeoutMs = Number(process.env.VISION_MODEL_TIMEOUT_MS || 240000);
-const localLlmApiKey = process.env.LOCAL_LLM_API_KEY || '';
-const localLlmJobId = process.env.LOCAL_LLM_JOB_ID || process.env.GITHUB_RUN_ID || 'vision-audit';
-const localLlmHosts = new Set(['127.0.0.1', 'localhost', '::1', 'host.docker.internal']);
-const ollamaUrl = new URL(ollamaBaseUrl);
-
-if (!localLlmHosts.has(ollamaUrl.hostname)) {
-  throw new Error(`Vision audit requires a local Ollama endpoint; received ${ollamaUrl.origin}`);
-}
+const geminiApiKey = process.env.GEMINI_API_KEY || '';
+const deepseekApiKey = process.env.DEEPSEEK_API_KEY || '';
+let geminiUnavailableReason = '';
 
 fs.mkdirSync(screenshotDir, { recursive: true });
 fs.mkdirSync(videoDir, { recursive: true });
@@ -31,17 +28,19 @@ const report = {
   version: 3,
   started_at: new Date().toISOString(),
   base_url: baseUrl,
-  model,
-  test_generation: 'planned-functional-journeys-with-local-vision-review',
+  model: 'pending',
+  test_generation: 'planned-functional-journeys-with-cloud-vision-review',
   model_provenance: {
-    execution: 'local-only',
-    provider: 'Ollama',
-    endpoint: ollamaUrl.origin,
-    model,
+    execution: 'cloud-api',
+    provider: 'pending',
+    endpoint: 'pending',
+    model: 'pending',
     local_llm_calls: 0,
     cloud_llm_calls: 0,
+    cloud_api_requests: 0,
+    provider_calls: { 'Google Gemini': 0, DeepSeek: 0 },
     cloud_api_keys_used: [],
-    scope: 'The audit evaluator is local-only. Production AI features under test may use their configured providers.',
+    scope: 'The audit evaluator uses Gemini cloud Vision with DeepSeek Flash fallback. Production AI features under test may use their configured providers.',
   },
   status: 'running',
   steps: [],
@@ -76,11 +75,111 @@ function parseJsonObject(value) {
   }
 }
 
+function redactSecrets(value) {
+  let safe = String(value || '');
+  for (const key of [geminiApiKey, deepseekApiKey]) {
+    if (key) safe = safe.replaceAll(key, '[redacted]');
+  }
+  return safe;
+}
+
+async function postVisionJson(url, keyName, headers, body, signal, provider) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    report.model_provenance.cloud_api_requests += 1;
+    if (!report.model_provenance.cloud_api_keys_used.includes(keyName)) {
+      report.model_provenance.cloud_api_keys_used.push(keyName);
+    }
+    const response = await fetch(url, { method: 'POST', headers, body, signal });
+    const payload = await response.json().catch(() => ({}));
+    if (response.ok) return payload;
+    if ((response.status === 429 || response.status >= 500) && attempt < 3) {
+      const retryAfter = Number(response.headers.get('retry-after'));
+      const delayMs = Number.isFinite(retryAfter) && retryAfter > 0
+        ? Math.min(retryAfter * 1000, 60000)
+        : [10000, 20000, 40000][attempt];
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      continue;
+    }
+    const error = new Error(`${provider} HTTP ${response.status}: ${clip(payload.error?.message || response.statusText, 500)}`);
+    error.httpStatus = response.status;
+    throw error;
+  }
+  throw new Error(`${provider} exhausted its retry budget`);
+}
+
+async function reviewWithGemini(prompt, imageData, signal) {
+  const body = JSON.stringify({
+    contents: [{
+      role: 'user',
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: 'image/png', data: imageData } },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0,
+      maxOutputTokens: 1200,
+      responseMimeType: 'application/json',
+      thinkingConfig: { thinkingBudget: 0 },
+    },
+  });
+  const payload = await postVisionJson(
+    `${geminiBaseUrl}/models/${geminiModel}:generateContent`,
+    'GEMINI_API_KEY',
+    { 'Content-Type': 'application/json', 'x-goog-api-key': geminiApiKey },
+    body, signal, 'Gemini',
+  );
+  const content = (payload.candidates?.[0]?.content?.parts || [])
+    .map((part) => part.text || '')
+    .join('\n');
+  const decision = parseJsonObject(content);
+  if (!decision.summary) {
+    throw new Error(`Gemini returned no structured summary (finish reason: ${payload.candidates?.[0]?.finishReason || 'unknown'})`);
+  }
+  return {
+    decision, provider: 'Google Gemini', model: geminiModel, endpoint: geminiBaseUrl,
+    prompt_tokens: Number(payload.usageMetadata?.promptTokenCount || 0),
+    completion_tokens: Number(payload.usageMetadata?.candidatesTokenCount || 0),
+  };
+}
+
+async function reviewWithDeepSeek(prompt, imageData, signal) {
+  const body = JSON.stringify({
+    model: deepseekModel,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: `data:image/png;base64,${imageData}`, detail: 'original' } },
+      ],
+    }],
+    response_format: { type: 'json_object' },
+    thinking: { type: 'disabled' },
+    max_tokens: 1200,
+    temperature: 0,
+  });
+  const payload = await postVisionJson(
+    `${deepseekBaseUrl}/chat/completions`,
+    'DEEPSEEK_API_KEY',
+    { 'Content-Type': 'application/json', Authorization: `Bearer ${deepseekApiKey}` },
+    body, signal, 'DeepSeek',
+  );
+  const decision = parseJsonObject(payload.choices?.[0]?.message?.content);
+  if (!decision.summary) {
+    throw new Error(`DeepSeek returned no structured summary (finish reason: ${payload.choices?.[0]?.finish_reason || 'unknown'})`);
+  }
+  return {
+    decision, provider: 'DeepSeek', model: deepseekModel, endpoint: deepseekBaseUrl,
+    prompt_tokens: Number(payload.usage?.prompt_tokens || 0),
+    completion_tokens: Number(payload.usage?.completion_tokens || 0),
+  };
+}
+
 async function askVisionAgent(imagePath, context) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const started = Date.now();
-  const prompt = `You are a conservative local visual QA reviewer auditing a completed browser test case.
+  const prompt = `You are a conservative visual QA reviewer auditing a completed browser test case.
 
 Inspect the screenshot together with the URL, browser evidence, and numbered interactive elements below.
 Report only concrete defects visible in the screenshot or directly supported by browser evidence. Do not report
@@ -105,43 +204,46 @@ Current evidence:
 ${JSON.stringify(context, null, 2)}`;
 
   try {
-    const response = await fetch(`${ollamaBaseUrl}/api/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localLlmApiKey}`,
-        'X-LLM-Job-ID': localLlmJobId,
-        'X-LLM-Model': model,
-      },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        format: 'json',
-        keep_alive: '15m',
-        messages: [{
-          role: 'user',
-          content: prompt,
-          images: [fs.readFileSync(imagePath).toString('base64')],
-        }],
-        options: { temperature: 0.0, num_predict: 1200 },
-      }),
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      throw new Error(`Ollama HTTP ${response.status}: ${clip(await response.text(), 500)}`);
+    const imageData = fs.readFileSync(imagePath).toString('base64');
+    let review;
+    let fallbackReason = geminiUnavailableReason;
+    if (!geminiApiKey && !geminiUnavailableReason) {
+      geminiUnavailableReason = 'Gemini key is not configured';
+      fallbackReason = geminiUnavailableReason;
+      report.model_provenance.fallback_reason = fallbackReason;
     }
-    const payload = await response.json();
+    if (geminiApiKey && !geminiUnavailableReason) {
+      try {
+        review = await reviewWithGemini(prompt, imageData, controller.signal);
+      } catch (error) {
+        geminiUnavailableReason = error.httpStatus
+          ? `Gemini HTTP ${error.httpStatus}`
+          : 'Gemini request or response failed';
+        fallbackReason = geminiUnavailableReason;
+        report.model_provenance.fallback_reason = fallbackReason;
+        console.warn(`${fallbackReason}; using DeepSeek Flash fallback.`);
+      }
+    }
+    if (!review) {
+      if (!deepseekApiKey) throw new Error(`${fallbackReason || 'Gemini unavailable'}; DEEPSEEK_API_KEY is not configured`);
+      review = await reviewWithDeepSeek(prompt, imageData, controller.signal);
+    }
     const latency = Date.now() - started;
     report.model_usage.calls += 1;
-    report.model_provenance.local_llm_calls += 1;
-    report.model_usage.prompt_tokens += Number(payload.prompt_eval_count || 0);
-    report.model_usage.completion_tokens += Number(payload.eval_count || 0);
+    report.model_provenance.cloud_llm_calls += 1;
+    report.model_provenance.provider_calls[review.provider] += 1;
+    report.model_usage.prompt_tokens += review.prompt_tokens;
+    report.model_usage.completion_tokens += review.completion_tokens;
     report.model_usage.total_latency_ms += latency;
-    const decision = parseJsonObject(payload.message?.content);
-    if (!decision.summary) {
-      throw new Error('Vision model returned no structured summary');
-    }
-    return { decision, latency_ms: latency };
+    const used = [
+      { name: 'Google Gemini', model: geminiModel, endpoint: geminiBaseUrl },
+      { name: 'DeepSeek', model: deepseekModel, endpoint: deepseekBaseUrl },
+    ].filter((provider) => report.model_provenance.provider_calls[provider.name] > 0);
+    report.model = used.map((provider) => provider.model).join(' + ');
+    report.model_provenance.provider = used.map((provider) => provider.name).join(' + ');
+    report.model_provenance.model = report.model;
+    report.model_provenance.endpoint = used.map((provider) => provider.endpoint).join(' + ');
+    return { ...review, latency_ms: latency, fallback_reason: review.provider === 'DeepSeek' ? fallbackReason : '' };
   } finally {
     clearTimeout(timer);
   }
@@ -486,6 +588,7 @@ function plannedJourneys() {
 }
 
 async function main() {
+  const { chromium } = require(playwrightPackage);
   const consoleErrors = [];
   const pageErrors = [];
   const failedResponses = [];
@@ -566,19 +669,26 @@ async function main() {
         browser_evidence: browserEvidence,
         interactive_elements: elements,
       };
-      let decision = { summary: 'Local Vision review did not complete.', visual_findings: [], functional_findings: [] };
+      let decision = { summary: 'Cloud Vision review did not complete.', visual_findings: [], functional_findings: [] };
       let latencyMs = 0;
+      let modelProvider = 'none';
+      let modelName = 'none';
+      let fallbackReason = '';
       try {
         const review = await askVisionAgent(screenshot, contextForModel);
         decision = review.decision;
         latencyMs = review.latency_ms;
+        modelProvider = review.provider;
+        modelName = review.model;
+        fallbackReason = review.fallback_reason;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        decision.summary = `Local Vision reviewer error: ${clip(message, 500)}`;
-        report.operational_error ||= `Local Vision review failed for ${journey.id}: ${clip(message, 1000)}`;
+        const safeMessage = redactSecrets(message);
+        decision.summary = `Cloud Vision reviewer error: ${clip(safeMessage, 500)}`;
+        report.operational_error ||= `Cloud Vision review failed for ${journey.id}: ${clip(safeMessage, 1000)}`;
         report.deterministic_findings.push({
-          kind: 'infrastructure', severity: 'high', title: `${journey.id} local Vision review failed`,
-          evidence: message,
+          kind: 'infrastructure', severity: 'high', title: `${journey.id} cloud Vision review failed`,
+          evidence: safeMessage,
         });
       }
 
@@ -606,7 +716,7 @@ async function main() {
         step: stepNumber,
         test_case_id: journey.id,
         test_case_name: journey.name,
-        test_case_type: 'planned browser journey with deterministic assertions and local Vision review',
+        test_case_type: 'planned browser journey with deterministic assertions and cloud Vision review',
         objective: journey.objective,
         expected_result: journey.expected,
         scenario_input: actionResult.input || journey.input || '',
@@ -621,9 +731,10 @@ async function main() {
         decision,
         action_result: actionResult,
         model_latency_ms: latencyMs,
-        llm_execution: 'local-only',
-        llm_provider: 'Ollama',
-        llm_model: model,
+        llm_execution: 'cloud-api',
+        llm_provider: modelProvider,
+        llm_model: modelName,
+        llm_fallback_reason: fallbackReason,
       });
     }
   } finally {
@@ -678,7 +789,7 @@ async function main() {
 
   console.log(JSON.stringify({
     status: report.status,
-    model,
+    model: report.model,
     steps: report.steps.length,
     pages: report.pages_observed.length,
     deterministic_findings: report.deterministic_findings.length,
@@ -688,10 +799,14 @@ async function main() {
   if (report.status !== 'passed') process.exitCode = 1;
 }
 
-main().catch((error) => {
-  report.status = 'failed';
-  report.operational_error = error instanceof Error ? error.stack || error.message : String(error);
-  writeReport();
-  console.error(report.operational_error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    report.status = 'failed';
+    report.operational_error = error instanceof Error ? error.stack || error.message : String(error);
+    writeReport();
+    console.error(report.operational_error);
+    process.exitCode = 1;
+  });
+}
+
+export { askVisionAgent, report };

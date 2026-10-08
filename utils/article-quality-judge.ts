@@ -167,14 +167,8 @@ async function judgeArticle(
             ],
             temperature: 0,
             response_format: { type: 'json_object' },
-            // Bound local output so the JSON verdict is not cut off. Only
-            // GPT-OSS accepts the OpenAI reasoning_effort extension.
-            ...(providerName === 'ollama' ? {
-              max_tokens: Number(process.env.LOCAL_LLM_MAX_TOKENS || 1024),
-              ...(model.includes('gpt-oss') ? {
-                reasoning_effort: process.env.LOCAL_LLM_REASONING_EFFORT || 'low',
-              } : {}),
-            } : {}),
+            max_tokens: Number(process.env.JUDGE_MAX_TOKENS || 4096),
+            ...(providerName === 'deepseek' ? { reasoning_effort: 'low' } : {}),
           },
         });
         const text = await resp.text();

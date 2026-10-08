@@ -118,7 +118,7 @@ jobs:
           CI: true
           PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/upstream/results.json
         # contentQuality (@upstream) uses our LLM judge — it now runs on the
-        # bosgame self-hosted runner (llm-quality.yml) against local gpt-oss,
+        # separate GitHub-hosted LLM quality workflow against DeepSeek,
         # so exclude it here to keep this cloud runner off free-tier providers.
         run: npx playwright test --grep "@upstream" --grep-invert "Content quality" --retries=3
 

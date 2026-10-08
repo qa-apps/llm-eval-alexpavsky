@@ -87,6 +87,7 @@ def step_html(step: dict) -> str:
     actual_action = action_result.get("action") or action_result.get("rejected") or "not executed"
     scenario_input = step.get("scenario_input") or "No text input required."
     scenario_output = step.get("scenario_output") or "The browser assertions and screenshot are the output."
+    fallback_reason = step.get("llm_fallback_reason") or ""
     candidate_findings = step.get("candidate_findings") or []
     confirmed_findings = step.get("confirmed_findings") or []
     return f"""
@@ -109,11 +110,13 @@ def step_html(step: dict) -> str:
             <dt>Input</dt><dd><pre>{h(scenario_input)}</pre></dd>
             <dt>Output</dt><dd><pre>{h(scenario_output)}</pre></dd>
           </dl>
-          <h3>Local Vision review</h3>
+          <h3>Vision review · {h(step.get('llm_provider', 'unknown'))}</h3>
           <p>{h(step.get('summary'))}</p>
           <dl>
+            <dt>Model</dt><dd><code>{h(step.get('llm_model', 'unknown'))}</code></dd>
             <dt>Execution</dt><dd><code>{h(actual_action)}</code></dd>
             <dt>Latency</dt><dd>{h(step.get('model_latency_ms', 0))} ms</dd>
+            {f'<dt>Fallback</dt><dd>{h(fallback_reason)}</dd>' if fallback_reason else ''}
           </dl>
         </div>
       </div>
@@ -130,6 +133,11 @@ def run_html(report: dict) -> str:
     status_class = "pass" if status == "passed" else "fail"
     provenance = report.get("model_provenance") or {}
     usage = report.get("model_usage") or {}
+    provider_counts = ", ".join(
+        f"{provider}: {count}"
+        for provider, count in (provenance.get("provider_calls") or {}).items()
+        if count
+    ) or "none"
     steps = report.get("steps") or []
     video_name = Path(str(report.get("video", ""))).name
     video = f"videos/{video_name}" if video_name else ""
@@ -155,9 +163,9 @@ video{{width:100%;max-width:900px;border:1px solid var(--line);border-radius:6px
 </style></head><body><main>
 <p><a href="../../index.html">All Daily Audit runs</a></p>
 <div class="top"><div><h1>AlexPavsky Daily Audit #{h(RUN_NUMBER)}</h1><p class="meta">{h(TIMESTAMP)} UTC · commit {h(COMMIT_SHA or 'unknown')} · {f'<a href="{h(run_url)}">GitHub run</a>' if run_url else 'local build'}</p></div><span class="status {status_class}">{h(status.upper())}</span></div>
-<div class="proof"><strong>Local audit evaluator only.</strong> Provider: {h(provenance.get('provider', 'Ollama'))}; endpoint: <code>{h(provenance.get('endpoint', 'unknown'))}</code>; model: <code>{h(provenance.get('model', report.get('model', 'unknown')))}</code>; cloud evaluator calls: <strong>{h(provenance.get('cloud_llm_calls', 0))}</strong>. AI Chat, Voice, and Challenge are production systems under test and may use their own configured providers.</div>
-<div class="metrics"><div class="metric"><b>{len(steps)}</b><span>documented test cases</span></div><div class="metric"><b>{h(usage.get('calls', 0))}</b><span>local Vision calls</span></div><div class="metric"><b>{h(usage.get('prompt_tokens', 0))}</b><span>input tokens</span></div><div class="metric"><b>{h(usage.get('completion_tokens', 0))}</b><span>output tokens</span></div><div class="metric"><b>{len(report.get('confirmed_findings') or [])}</b><span>confirmed defects</span></div></div>
-<p>The run executes ten required UI openings plus live AI Chat, Voice Agent, and Challenge journeys. Every case records its screenshot, objective, expected result, exact input and output, deterministic browser checks, local Vision review, and calibrated verdict.</p>
+<div class="proof"><strong>Audit evaluator: {h(provenance.get('execution', 'unknown'))}.</strong> Provider: {h(provenance.get('provider', 'unknown'))}; endpoint: <code>{h(provenance.get('endpoint', 'unknown'))}</code>; model: <code>{h(provenance.get('model', report.get('model', 'unknown')))}</code>; cloud evaluator calls: <strong>{h(provenance.get('cloud_llm_calls', 0))}</strong>; API requests: <strong>{h(provenance.get('cloud_api_requests', 0))}</strong>; decisions: {h(provider_counts)}. AI Chat, Voice, and Challenge are production systems under test and may use their own configured providers.</div>
+<div class="metrics"><div class="metric"><b>{len(steps)}</b><span>documented test cases</span></div><div class="metric"><b>{h(usage.get('calls', 0))}</b><span>Vision calls</span></div><div class="metric"><b>{h(usage.get('prompt_tokens', 0))}</b><span>input tokens</span></div><div class="metric"><b>{h(usage.get('completion_tokens', 0))}</b><span>output tokens</span></div><div class="metric"><b>{len(report.get('confirmed_findings') or [])}</b><span>confirmed defects</span></div></div>
+<p>The run executes ten required UI openings plus live AI Chat, Voice Agent, and Challenge journeys. Every case records its screenshot, objective, expected result, exact input and output, deterministic browser checks, Vision review, and calibrated verdict.</p>
 {test_cases}
 <section><h2>Full session recording</h2>{f'<video controls preload="metadata" src="{h(video)}"></video>' if video else '<p class="empty">No video produced.</p>'}</section>
 <p class="meta"><a href="vision-audit-report.json">Raw JSON decision trail</a></p>
@@ -182,7 +190,7 @@ def index_html(history: list[dict]) -> str:
         )
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AlexPavsky Daily Audit</title>
 <style>body{{font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:0 auto;max-width:1050px;padding:28px 20px;color:#1f2328}}h1{{font-size:28px;letter-spacing:0}}a{{color:#0969da;text-decoration:none}}table{{width:100%;border-collapse:collapse;margin-top:18px}}th,td{{padding:9px 10px;border-bottom:1px solid #d0d7de;text-align:left}}th{{background:#f6f8fa}}.passed{{color:#116329;font-weight:700}}.failed{{color:#a40e26;font-weight:700}}@media(max-width:760px){{table{{font-size:12px}}th,td{{padding:7px 5px}}}}</style></head>
-<body><h1>AlexPavsky Daily Audit</h1><p>Daily autonomous visual and functional checks, evaluated only by the local Ollama Vision model.</p><table><thead><tr><th>Run</th><th>Status</th><th>UTC</th><th>Cases</th><th>Defects</th><th>Model</th><th>Commit</th></tr></thead><tbody>{''.join(rows) or '<tr><td colspan="7">No runs yet.</td></tr>'}</tbody></table></body></html>"""
+<body><h1>AlexPavsky Daily Audit</h1><p>Daily autonomous visual and functional checks. Open a run for its evaluator provenance and evidence.</p><table><thead><tr><th>Run</th><th>Status</th><th>UTC</th><th>Cases</th><th>Defects</th><th>Model</th><th>Commit</th></tr></thead><tbody>{''.join(rows) or '<tr><td colspan="7">No runs yet.</td></tr>'}</tbody></table></body></html>"""
 
 
 def main() -> None:

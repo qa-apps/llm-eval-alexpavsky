@@ -27,8 +27,8 @@
     "eval": "promptfoo eval -c promptfooconfig.yaml --max-concurrency 1",
     "eval:static": "promptfoo eval --no-cache --max-concurrency 1",
     "eval:view": "promptfoo view",
-    "providers:refresh": "ts-node scripts/refresh-promptfoo-providers.ts",
-    "providers:ping": "ts-node scripts/ping-providers.ts",
+    "providers:refresh": "node scripts/refresh-promptfoo-providers.cjs",
+    "providers:ping": "python3 .github/scripts/check_cloud_judge.py",
     "test:voice": "vitest run tests/voice",
     "test:observability": "vitest run tests/observability",
     "test:agents": "vitest run"

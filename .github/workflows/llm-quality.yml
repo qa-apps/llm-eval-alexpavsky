@@ -2,7 +2,7 @@ name: LLM Quality (LLM Judge tests)
 
 # Companion to playwright-ci.yml. The "LLM Judge" suite lives here because
 # every test exercises production /api/chat and grades only essential behavior
-# with a local Bosgame judge. Style and tone are not quality gates.
+# with a DeepSeek cloud judge. Style and tone are not quality gates.
 #
 # This workflow runs the same tests as main in isolation. The test step is
 # temporarily non-blocking so reports and Slack notifications are always
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
   schedule:
     # 3:45 AM America/New_York. The gate below selects the correct DST slot;
-    # the self-hosted job remains queued if Bosgame is temporarily busy.
+    # the cloud job runs on GitHub-hosted compute.
     - cron: '45 7 * * *'
     - cron: '45 8 * * *'
 
@@ -46,33 +46,17 @@ jobs:
   llm-quality:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
+    runs-on: ubuntu-latest
     timeout-minutes: 480
     outputs:
       eval_date: ${{ steps.eval_day.outputs.date }}
       completion_ready: ${{ steps.completion_gate.outputs.ready }}
     env:
-      LLM_CATALOG_URL: http://127.0.0.1:11445
-      OLLAMA_BASE_URL: http://127.0.0.1:11445
-      LOCAL_LLM_BASE_URL: http://127.0.0.1:11445/v1
-      # The 120B judge plus Chrome exhausts the Bosgame runner. This local
-      # 30B vision/reasoning model is already used by the daily vision audit
-      # and keeps the browser-backed quality suite within the memory budget.
-      LOCAL_LLM_MODEL: qwen3-vl-30b-a3b-screen:latest
-      LOCAL_LLM_UPSTREAM_MODEL: qwen3-vl-30b-a3b-screen:latest
-      LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-      LOCAL_LLM_PRIORITY_MAX_WAIT_SEC: ${{ github.event_name == 'schedule' && '21600' || '3600' }}
-      LOCAL_EMBEDDING_MODEL: qwen3-embedding:4b
-      LOCAL_LLM_TIMEOUT_SEC: '180'
-      LOCAL_LLM_TIMEOUT_MS: '180000'
-      LOCAL_LLM_MAX_TOKENS: '1024'
-      LOCAL_LLM_REASONING_EFFORT: low
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      JUDGE_TIMEOUT_MS: '120000'
+      JUDGE_MAX_TOKENS: '4096'
       LLM_TEST_TIMEOUT_MS: '300000'
       LLM_JUDGE_PASSING_SCORE: '3'
-      # Playwright 1.58 does not yet identify Ubuntu 26 as a supported download
-      # target. Its Ubuntu 24 ffmpeg bundle is portable to this runner; Chrome
-      # itself still comes from the system package below.
-      PLAYWRIGHT_HOST_PLATFORM_OVERRIDE: ubuntu24.04-x64
 
     steps:
       - name: Checkout
@@ -97,77 +81,17 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/llm-quality.done
-          key: bosgame-llm-quality-${{ steps.eval_day.outputs.date }}
+          key: cloud-llm-quality-v1-${{ steps.eval_day.outputs.date }}
 
-      - name: Check local judge availability
-        id: local_llm
+      - name: Check DeepSeek judge availability
+        id: cloud_judge
         if: steps.daily_marker.outputs.cache-hit != 'true'
-        shell: bash
         run: |
-          # Since 2026-09-14 the gateway answers 401 without a key; send the runner-provided one.
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          AUTH="Authorization: Bearer ${LOCAL_LLM_API_KEY}"
-          ready=false
-          deadline=$((SECONDS + LOCAL_LLM_PRIORITY_MAX_WAIT_SEC))
-          while true; do
-            if models=$(curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-                -H "$AUTH" -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-                "$LLM_CATALOG_URL/v1/models") && \
-               python3 -c 'import json,sys; wanted=[w for w in sys.argv[1:] if w]; ids=[m.get("id") for m in json.load(sys.stdin).get("data", [])]; ok=any(w in ids for w in wanted); ok or print(f"::warning::None of {wanted} is listed by the background gateway; available: {ids}"); raise SystemExit(0 if ok else 1)' "$LOCAL_LLM_MODEL" "$LOCAL_LLM_UPSTREAM_MODEL" <<<"$models"; then
-              ready=true
-              break
-            fi
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              break
-            fi
-            echo "Local model gateway is busy or transitioning; retrying in 10s."
-            sleep 10
-          done
-          if [ "$ready" = true ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-            echo "Local model $LOCAL_LLM_MODEL is ready."
-          else
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Local model unavailable (reason above); the next hourly schedule will retry."
-          fi
-
-      - name: Nightly Bosgame — report unavailable
-        if: steps.daily_marker.outputs.cache-hit != 'true' && steps.local_llm.outputs.run != 'true'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "LLM Quality" --event down
-
-      - name: Nightly Bosgame — report available
-        if: steps.local_llm.outputs.run == 'true'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "LLM Quality" --event up
-
-      - name: Warm up local model (up to 2 min)
-        if: steps.local_llm.outputs.run == 'true'
-        shell: bash
-        run: |
-          echo "Warming $LOCAL_LLM_UPSTREAM_MODEL (scheduled work waits behind interactive use)…"
-          curl -s --max-time 150 "$OLLAMA_BASE_URL/api/generate" \
-            -H "Authorization: Bearer ${LOCAL_LLM_API_KEY}" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_LLM_UPSTREAM_MODEL" \
-            -d "{\"model\":\"$LOCAL_LLM_UPSTREAM_MODEL\",\"prompt\":\"ok\",\"stream\":false,\"keep_alive\":-1,\"options\":{\"num_predict\":1}}" \
-            >/dev/null || echo "warm-up request timed out (continuing anyway)"
-          if [ -n "${LOCAL_EMBEDDING_MODEL:-}" ]; then
-            curl -s --max-time 60 "$OLLAMA_BASE_URL/api/embed" \
-              -H "Authorization: Bearer ${LOCAL_LLM_API_KEY}" \
-              -H "X-LLM-Job-ID: $GITHUB_RUN_ID" -H "X-LLM-Model: $LOCAL_EMBEDDING_MODEL" \
-              -d "{\"model\":\"$LOCAL_EMBEDDING_MODEL\",\"input\":\"ok\",\"keep_alive\":-1}" >/dev/null || true
-          fi
+          python3 .github/scripts/check_cloud_judge.py
+          echo "run=true" >> "$GITHUB_OUTPUT"
 
       - name: Checkout existing gh-pages site (if any)
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
         with:
           ref: gh-pages
@@ -175,42 +99,33 @@ jobs:
         continue-on-error: true
 
       - name: Set up Node.js
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 22
           cache: npm
 
       - name: Install dependencies
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         run: npm ci
 
       - name: Install Playwright browsers
         id: install_browser
-        if: steps.local_llm.outputs.run == 'true'
-        shell: bash
-        run: |
-          if command -v google-chrome >/dev/null 2>&1; then
-            echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$(command -v google-chrome)" >> "$GITHUB_ENV"
-            npx playwright install ffmpeg
-            echo "Using system Google Chrome on the Ubuntu 26.04 Bosgame runner."
-          else
-            npx playwright install chromium
-            echo "Using the Playwright-managed Chromium binary."
-          fi
+        if: steps.cloud_judge.outputs.run == 'true'
+        run: npx playwright install --with-deps chromium
 
       - name: Record LLM Judge run start
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         run: python3 -c 'import os,time; from pathlib import Path; Path(os.environ["RUNNER_TEMP"]).joinpath("llm-quality-start-ns").write_text(str(time.time_ns()))'
 
       - name: Run LLM Judge tests
-        if: steps.local_llm.outputs.run == 'true'
+        if: steps.cloud_judge.outputs.run == 'true'
         # Keep later report, artifact, and Slack steps running on failures.
         continue-on-error: true
         id: run_tests
         # "LLM Judge" = the dedicated judge suite; "Content quality" = the
         # @upstream article-quality-judge specs, migrated here so their judge
-        # runs on the local Bosgame judge instead of free-tier providers.
+        # runs on the configured DeepSeek cloud judge.
         run: npx playwright test --grep "LLM Judge|Content quality" --workers=1 --reporter=list,json,html
         env:
           CI: true
@@ -220,7 +135,7 @@ jobs:
 
       - name: Validate complete LLM Judge report
         id: report_contract
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           TEST_RUN_OUTCOME: ${{ steps.run_tests.outcome }}
         run: |
@@ -299,7 +214,7 @@ jobs:
 
       - name: Upload Playwright report
         id: upload_playwright
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: llm-quality-report-${{ github.run_number }}
@@ -308,7 +223,7 @@ jobs:
 
       - name: Upload judge verdicts
         id: upload_verdicts
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: judge-verdicts-${{ github.run_number }}
@@ -319,12 +234,12 @@ jobs:
           if-no-files-found: ignore
 
       - name: Post summary to job
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         run: |
           echo "## LLM Quality Run #${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "Tests in this workflow probe the production AI chatbot via" >> "$GITHUB_STEP_SUMMARY"
-          echo "the production chatbot and grade essential behavior with local model \`$LOCAL_LLM_MODEL\`." >> "$GITHUB_STEP_SUMMARY"
+          echo "the production chatbot and grade essential behavior with DeepSeek cloud judge \`deepseek-v4-pro\`." >> "$GITHUB_STEP_SUMMARY"
           echo "Style and tone are intentionally outside this smoke gate." >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "**Step status:** ${{ steps.run_tests.outcome }}" >> "$GITHUB_STEP_SUMMARY"
@@ -335,7 +250,7 @@ jobs:
 
       - name: Build LLM Judge Pages UI
         id: build_pages
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
         env:
           RUN_NUMBER: ${{ github.run_number }}
           RUN_ID: ${{ github.run_id }}
@@ -345,7 +260,7 @@ jobs:
 
       - name: Upload Pages site for isolated publisher
         id: upload_pages
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success' && steps.build_pages.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success' && steps.build_pages.outcome == 'success'
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4
         with:
           name: llm-quality-pages-${{ github.run_id }}
@@ -355,7 +270,7 @@ jobs:
 
       - name: Notify Slack
         id: notify_slack
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -375,7 +290,7 @@ jobs:
 
 
       - name: Post bug report to Slack
-        if: steps.local_llm.outputs.run == 'true' && steps.run_tests.outcome == 'failure'
+        if: steps.cloud_judge.outputs.run == 'true' && steps.run_tests.outcome == 'failure'
         env:
           SLACK_BOT_TOKEN:    ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_RUN_URL:     ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -390,22 +305,9 @@ jobs:
             --pipeline "LLM Quality" \
             --results-dir test-results
 
-      - name: Nightly Bosgame — post results
-        id: notify_daily
-        if: always() && steps.local_llm.outputs.run == 'true' && steps.report_contract.outcome == 'success'
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          python3 .github/scripts/notify_bosgame_run_slack.py \
-            --channel "${{ secrets.SLACK_NIGHTLY_BOSGAME_CHANNEL_ID }}" \
-            --suite "LLM Quality" --event result \
-            --format playwright --results test-results/results.json \
-            --require-delivery
-
       - name: Evaluate daily completion gate
         id: completion_gate
-        if: always() && steps.local_llm.outputs.run == 'true'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           BROWSER_INSTALL: ${{ steps.install_browser.outcome }}
           REPORT_CONTRACT: ${{ steps.report_contract.outcome }}
@@ -414,11 +316,10 @@ jobs:
           PAGES_BUILD: ${{ steps.build_pages.outcome }}
           PAGES_UPLOAD: ${{ steps.upload_pages.outcome }}
           JUDGE_SLACK: ${{ steps.notify_slack.outcome }}
-          DAILY_SLACK: ${{ steps.notify_daily.outcome }}
           TEST_RUN: ${{ steps.run_tests.outcome }}
         run: |
           ready=true
-          for outcome in "$BROWSER_INSTALL" "$REPORT_CONTRACT" "$PLAYWRIGHT_UPLOAD" "$VERDICT_UPLOAD" "$PAGES_BUILD" "$PAGES_UPLOAD" "$JUDGE_SLACK" "$DAILY_SLACK"; do
+          for outcome in "$BROWSER_INSTALL" "$REPORT_CONTRACT" "$PLAYWRIGHT_UPLOAD" "$VERDICT_UPLOAD" "$PAGES_BUILD" "$PAGES_UPLOAD" "$JUDGE_SLACK"; do
             [ "$outcome" = "success" ] || ready=false
           done
           [ "$TEST_RUN" = "success" ] || [ "$TEST_RUN" = "failure" ] || ready=false
@@ -426,15 +327,8 @@ jobs:
           [ "$ready" = "true" ] || echo "::warning::Daily marker withheld because report, artifact, Pages input, or Slack delivery was incomplete."
 
       - name: Fail if LLM quality tests failed
-        if: steps.local_llm.outputs.run == 'true' && steps.run_tests.outcome == 'failure'
+        if: steps.cloud_judge.outputs.run == 'true' && steps.run_tests.outcome == 'failure'
         run: exit 1
-
-      - name: Release background model lease
-        if: always() && github.event_name == 'schedule'
-        run: |
-          curl -fsS -X POST \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background || true
 
   publish-llm-quality-pages:
     name: Publish Pages from GitHub-hosted runner
@@ -491,4 +385,4 @@ jobs:
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
         with:
           path: .ci-markers/llm-quality.done
-          key: bosgame-llm-quality-${{ needs['llm-quality'].outputs.eval_date }}
+          key: cloud-llm-quality-v1-${{ needs['llm-quality'].outputs.eval_date }}

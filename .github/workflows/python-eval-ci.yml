@@ -34,6 +34,7 @@ jobs:
       - name: Verify evaluation imports
         env:
           PYTHONPATH: .
+          DEEPSEEK_API_KEY: ci-config-only
         run: |
           python - <<'PY'
           from ragas import EvaluationDataset, SingleTurnSample, evaluate
@@ -43,7 +44,7 @@ jobs:
           from eval.rotating_llm import RotatingJudgeLLM, build_provider_list
           import giskard
 
-          assert build_provider_list()[0]["name"] == "ollama"
+          assert build_provider_list()[0]["name"] == "deepseek"
           print("Evaluation runtime imports successfully")
           PY
       - name: Run Python unit tests

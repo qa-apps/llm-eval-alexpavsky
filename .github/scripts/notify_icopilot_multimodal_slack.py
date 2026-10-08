@@ -96,8 +96,8 @@ def case_text(item: dict) -> str:
         f"TTFT `{item.get('first_token_ms')} ms` · total `{item.get('total_ms')} ms` · "
         f"cost `${float(item.get('estimated_cost_usd') or 0):.6f}`\n"
         f"*I-Copilot answer:*\n```{clip(item.get('answer'), 1500)}```\n"
-        f"*LLM judge:* `{clip(judge.get('provider') or 'local', 80)}/"
-        f"{clip(judge.get('model') or 'gpt-oss:120b', 120)}` · "
+        f"*LLM judge:* `{clip(judge.get('provider') or 'unknown', 80)}/"
+        f"{clip(judge.get('model') or 'unknown', 120)}` · "
         f"score `{float(judge.get('score') or 0):.2f}` · "
         f"{clip(judge.get('reason'), 700)}"
     )
@@ -144,8 +144,8 @@ def case_blocks(item: dict, image_url: str) -> list[dict]:
             "text": {
                 "type": "mrkdwn",
                 "text": (
-                    f"*LLM judge:* `{clip(judge.get('provider') or 'local', 80)}/"
-                    f"{clip(judge.get('model') or 'gpt-oss:120b', 120)}` · "
+                    f"*LLM judge:* `{clip(judge.get('provider') or 'unknown', 80)}/"
+                    f"{clip(judge.get('model') or 'unknown', 120)}` · "
                     f"score `{float(judge.get('score') or 0):.2f}` · "
                     f"{clip(judge.get('reason'), 700)}"
                 ),
@@ -159,9 +159,11 @@ def main() -> int:
     parser.add_argument("--channel", required=True)
     parser.add_argument(
         "--url",
-        default="https://159.195.207.48.sslip.io/static/eval-reports/ico-pilot-multimodal-latest.json",
+        default=os.environ.get("ICO_PILOT_MULTIMODAL_REPORT_URL", ""),
     )
     args = parser.parse_args()
+    if not args.url:
+        raise SystemExit("ICO_PILOT_MULTIMODAL_REPORT_URL or --url is required")
     token = os.environ.get("SLACK_BOT_TOKEN", "").strip()
     if not token:
         raise SystemExit("SLACK_BOT_TOKEN is required")
@@ -181,8 +183,8 @@ def main() -> int:
     except Exception:
         pass
     passed = int(summary.get("passed") or 0)
-    judge_provider = summary.get("judge_provider") or "local"
-    judge_model = summary.get("judge_model") or "gpt-oss:120b"
+    judge_provider = summary.get("judge_provider") or "unknown"
+    judge_model = summary.get("judge_model") or "unknown"
     judge_tokens = int(summary.get("judge_total_tokens") or 0)
     parent = slack(token, "chat.postMessage", {
         "channel": args.channel,

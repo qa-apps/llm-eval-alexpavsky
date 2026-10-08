@@ -39,8 +39,8 @@ jobs:
   generate-report:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: [self-hosted, Linux, X64, bosgame]
-    timeout-minutes: 390
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repo
@@ -64,13 +64,14 @@ jobs:
             --json databaseId \
             --jq '.[].databaseId'); do
             echo "Checking Playwright run ${run_id} for test-results artifact"
-            if gh run download "$run_id" -n test-results -D test-results 2>/dev/null; then
-              if find test-results -name 'results-pure.json' -print -quit | grep -q .; then
+            candidate_dir="test-results/candidate-${run_id}"
+            mkdir -p "$candidate_dir"
+            if gh run download "$run_id" -n test-results -D "$candidate_dir" 2>/dev/null; then
+              if find "$candidate_dir" -name 'results-pure.json' -print -quit | grep -q .; then
                 echo "Downloaded test-results from Playwright run ${run_id}"
                 found=1
                 break
               fi
-              find test-results -mindepth 1 -maxdepth 1 -exec rm -rf {} +
             fi
           done
 
@@ -87,46 +88,19 @@ jobs:
       - name: Install dependencies
         run: pip install httpx python-dateutil
 
-      - name: Wait for local GPT-OSS
+      - name: Check DeepSeek judge availability
         env:
-          LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-        run: |
-          : "${LOCAL_LLM_API_KEY:?LOCAL_LLM_API_KEY secret is required}"
-          deadline=$((SECONDS + 21600))
-          until curl --connect-timeout 5 --max-time 15 --fail --silent --show-error \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            -H "X-LLM-Model: gpt-oss:120b" \
-            http://127.0.0.1:11445/v1/models >/dev/null; do
-            if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "Local GPT-OSS did not become available within six hours"
-              exit 1
-            fi
-            sleep 10
-          done
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: python3 .github/scripts/check_cloud_judge.py
 
       - name: Generate weekly report and send to Slack + site
         env:
-          LOCAL_LLM_BASE_URL:  http://127.0.0.1:11445/v1
-          LOCAL_LLM_API_KEY:   ${{ secrets.LOCAL_LLM_API_KEY }}
-          LOCAL_LLM_MODEL:     scheduled/gpt-oss:120b
-          LOCAL_LLM_JOB_ID:    ${{ github.run_id }}
+          DEEPSEEK_API_KEY:    ${{ secrets.DEEPSEEK_API_KEY }}
           SLACK_WEBHOOK_URL:   ${{ secrets.SLACK_WEBHOOK_URL }}
           SITE_REPORTS_URL:    https://alexpavsky.com/api/agent-reports
           MAINTENANCE_KEY:     ${{ secrets.MAINTENANCE_KEY }}
           GITHUB_RUN_URL:      ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: python .github/scripts/weekly_report.py
-
-      - name: Release background model lease
-        if: always()
-        env:
-          LOCAL_LLM_API_KEY: ${{ secrets.LOCAL_LLM_API_KEY }}
-        run: |
-          curl --connect-timeout 5 --max-time 15 --silent --show-error \
-            -X POST \
-            -H "Authorization: Bearer $LOCAL_LLM_API_KEY" \
-            -H "X-LLM-Job-ID: $GITHUB_RUN_ID" \
-            http://127.0.0.1:11443/release/background >/dev/null || true
 
       - name: Upload report as artifact
         if: always()
