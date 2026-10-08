@@ -48,5 +48,15 @@
     "confirmed_findings": 0,
     "model": "cloud-eval",
     "commit": "8b4a9da"
+  },
+  {
+    "run_number": "51",
+    "run_id": "37803149310",
+    "timestamp": "2026-10-08T15:46:28+00:00",
+    "status": "failed",
+    "test_cases": 15,
+    "confirmed_findings": 0,
+    "model": "deepseek-flash",
+    "commit": "89fd376"
   }
 ]
