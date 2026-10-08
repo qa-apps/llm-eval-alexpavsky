@@ -4596,5 +4596,47 @@
       "summary.json",
       "ragas_cases.json"
     ]
+  },
+  {
+    "run_number": 252,
+    "run_id": "37809058284",
+    "timestamp": "2026-10-08T16:41:18+00:00",
+    "commit": "38b5203",
+    "ragas": {
+      "avg_faithfulness": 0.892,
+      "avg_relevancy": 0.719,
+      "status": "fail"
+    },
+    "ragas_counts": {
+      "passed": 9,
+      "failed": 1,
+      "total": 10
+    },
+    "giskard_rag": {
+      "rag_api": "https://alexpavsky.com",
+      "num_questions": 5,
+      "judge": "deepseek/deepseek-v4-pro",
+      "correctness": 0.6,
+      "minimum_correctness": 0.5,
+      "passed": 3,
+      "failed": 2,
+      "total": 5,
+      "evaluation_completed": true,
+      "quality_passed": true
+    },
+    "giskard_counts": {
+      "passed": 3,
+      "failed": 2,
+      "total": 5
+    },
+    "giskard_scan": {},
+    "files": [
+      "report.md",
+      "summary.json",
+      "ragas_cases.json",
+      "giskard_rag.html",
+      "giskard_rag.json",
+      "giskard_rag_cases.json"
+    ]
   }
 ]

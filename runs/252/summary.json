@@ -1,0 +1,12 @@
+{
+  "passed": 9,
+  "failed": 1,
+  "flaky": 0,
+  "skipped": 0,
+  "total": 10,
+  "avg_faithfulness": 0.8916666666666666,
+  "avg_relevancy": 0.7186017795983711,
+  "keyword_pass_rate": 0.9,
+  "evaluation_completed": true,
+  "quality_passed": true
+}

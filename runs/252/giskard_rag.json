@@ -1,0 +1,12 @@
+{
+  "rag_api": "https://alexpavsky.com",
+  "num_questions": 5,
+  "judge": "deepseek/deepseek-v4-pro",
+  "correctness": 0.6,
+  "minimum_correctness": 0.5,
+  "passed": 3,
+  "failed": 2,
+  "total": 5,
+  "evaluation_completed": true,
+  "quality_passed": true
+}

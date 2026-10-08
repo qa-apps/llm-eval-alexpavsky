@@ -1,0 +1,74 @@
+{
+  "rag_api": "https://alexpavsky.com",
+  "num_questions": 5,
+  "judge": "deepseek/deepseek-v4-pro",
+  "correctness": 0.6,
+  "minimum_correctness": 0.5,
+  "passed": 3,
+  "failed": 2,
+  "total": 5,
+  "evaluation_completed": true,
+  "quality_passed": true,
+  "cases": [
+    {
+      "id": "giskard-1",
+      "giskard_id": "3473a1fd-9e89-4083-9f52-0bb87bb1e23a",
+      "question_type": "simple",
+      "topic": "Others",
+      "prompt": "What are the key components of enterprise Playwright at scale according to the context?",
+      "reference_answer": "Enterprise Playwright at scale uses test sharding, dedicated CI fleets, custom reporters integrated with observability platforms, flake quarantine systems, and policy-driven test execution based on changed code paths.",
+      "answer": "**Key components of an enterprise‑scale Playwright automation system (as described in the supplied material)**  \n\n| Area | What the context calls out as a core building block |\n|------|------------------------------------------------------|\n| **Framework architecture** | • A **Component‑driven Page Object Model (POM)** – pages are broken into reusable component objects (e.g., `TableComponent`).  <br>• **Component‑driven fixtures** that provide stable test‑hooks, seed data and logging before a feature is considered complete. |\n| **Abstraction layers** | • Clear separation of **UI helpers**, **API helpers**, **data builders**, and **service‑layer contracts**.  <br>• “Product‑behaviour”, “integration‑behaviour”, “data‑behaviour” and “operational‑behaviour” layers. |\n| **Test‑data isolation** | • **Multi‑tenant isolation strategy** – dynamic on‑the‑fly API‑driven data provisioning + isolated browser‑context pooling to avoid cross‑contamination. |\n| **CI/CD integration** | • **Layered CI checks** (instead of one monolithic regression suite) – architecture review, proof‑of‑concept, fixture design, migration, CI integration, measurement & cleanup.  <br>• **CI pipeline tooling** – GitHub Actions (or similar), Docker containers, sharding, quality‑gate enforcement. |\n| **Evidence & observability** | • **Stable test hooks** and **trace retention** (Playwright trace.zip, screenshots, HTML reports).  <br>• **API request/response logs**, **SQL / event snapshots**, and other artefacts (HTML report, trace, request logs). |\n| **Operational tooling** | • **Monitoring & logging** (e.g., Kibana).  <br>• **Metrics** to track runtime, flake rate, failure age, risk‑coverage, maintenance cost, defect‑escape rate. |\n| **Supporting stack** | • Playwright Test, **TypeScript**, **APIRequestContext**, Node.js.  <br>• Infrastructure: GitHub Actions, Docker, Kubernetes, AWS (IAM/CIAM).  <br>• Optional AI‑quality add‑ons (Langfuse, Promptfoo, DeepEval, etc.) for LLM‑centric products. |\n| **Deliverables & governance** | • **Framework README**, example test patterns, code‑review checklist, CI‑evidence policy.  <br>• **Folder conventions**, fixture contracts, page‑model libraries, API client libraries, data‑builder modules. |\n| **People & ownership** | • Defined roles: QA automation engineers, developers, DevOps, engineering managers.  <br>• Senior QA/SDET ownership of problem definition, abstraction choice, release‑risk communication. |\n\nIn short, the context defines an enterprise Playwright system as a **modular, component‑driven framework** with **strict data isolation**, **layered CI integration**, **rich evidence capture**,",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer provides a detailed and plausible overview of enterprise-scale Playwright components, including test sharding, CI integration, observability, data isolation, and operational tooling, which aligns with the reference's key themes. Some extra details are included but not contradictory."
+    },
+    {
+      "id": "giskard-2",
+      "giskard_id": "441bff4e-c02b-496c-83d5-7a03aa6a120e",
+      "question_type": "complex",
+      "topic": "Others",
+      "prompt": "According to the evaluation guidance, name three common pitfalls in LLM-as-a-judge frameworks and specify which one emerges when the judge evaluates its own outputs.",
+      "reference_answer": "Position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.",
+      "answer": "According to the evaluation guidance, three common pitfalls in LLM-as-a-judge frameworks are:\n\n1. **Fluent hallucinations**: LLM output quality must be measured against task intent and evidence, not only readability. This means that the judge should evaluate the output based on its correctness and relevance to the task, rather than just its fluency.\n2. **Weak retrieval**: The judge should evaluate the output's retrieval of context and information, rather than just its generation of text.\n3. **Over-trusting judges**: The judge should be calibrated and validated to ensure that it is not over-trusting the output, and that it is correctly identifying errors and inaccuracies.\n\nThe pitfall that emerges when the judge evaluates its own outputs is **self-preference**. This is when the judge favors its own outputs over others, even if they are not accurate or relevant. This can occur when the judge is not properly calibrated or validated, or when it is biased towards its own outputs. To mitigate this, the guidance recommends using a different model family for the judge than the SUT, and cross-checking on the HITL anchor set.",
+      "passed": false,
+      "status": "FAIL",
+      "reason": "The chatbot answer does not name the three common pitfalls from the evaluation guidance. It lists 'fluent hallucinations,' 'weak retrieval,' and 'over-trusting judges' instead of position bias, verbosity bias, and self-enhancement bias, though it correctly identifies a self-preference/self-enhancement bias when evaluating its own outputs."
+    },
+    {
+      "id": "giskard-3",
+      "giskard_id": "b5316d4b-1470-4a40-b089-bc66cc5bc2a4",
+      "question_type": "distracting element",
+      "topic": "Others",
+      "prompt": "In an agentic test orchestration scenario using MCP where an LLM-driven test agent retrieves context, generates test inputs, and adapts its plan under guardrails for destructive actions and audit trails for non-determinism, what metrics are used to evaluate retrieval quality and generation quality in RAG, and when does hallucination occur?",
+      "reference_answer": "Retrieval quality is measured via context precision and recall. Generation quality is measured via faithfulness and answer relevancy. Hallucination occurs when the model outputs claims unsupported by retrieved context.",
+      "answer": "Retrieval quality is evaluated by **faithfulness scoring**: the model’s answer is broken into atomic factual claims; each claim is checked against the retrieved context to see whether it is entailed. The faithfulness metric is `supported_claims / total_claims` and the release gate requires a minimum of ≥ 0.85. Generation quality is measured by the same faithfulness metric applied to the final generated answer (RAGAS‑style). Hallucination occurs when a claim is produced that is **not supported by the retrieved context**, i.e., the claim extraction step finds a statement that the grounding chunks do not entail.",
+      "passed": false,
+      "status": "FAIL",
+      "reason": "The chatbot answer mislabels retrieval quality: it describes faithfulness scoring, which evaluates generation quality, rather than context precision and recall. It also omits answer relevancy as a generation quality metric, though the hallucination definition is roughly correct."
+    },
+    {
+      "id": "giskard-4",
+      "giskard_id": "5f76112a-c7af-42cf-b7d6-8ace74ad7bc1",
+      "question_type": "situational",
+      "topic": "Others",
+      "prompt": "I'm a QA lead researching how to bring chaos engineering and contract testing into our ephemeral Kubernetes test environments. What are the cloud-native QA practices mentioned in the context?",
+      "reference_answer": "The cloud-native QA practices mentioned are synthetic monitoring, chaos engineering, contract testing for microservices, and observability via distributed tracing.",
+      "answer": "Based on the provided context, the cloud-native QA practices mentioned for integrating chaos engineering and contract testing into ephemeral Kubernetes test environments are:\n\n1. **Kubernetes Validation**:\n   - Separating product, integration, data, and operational behaviour.\n   - Using deployment checklists, container configs, smoke suites, dashboards, k6 scripts, IAM test matrices, and incident notes.\n   - Focusing on deployment success, rollback frequency, API latency, error rate, log coverage, event consistency, access defects, and MTTR.\n\n2. **Observability with Logs, Metrics, and Traces**:\n   - Using logs and metrics as test evidence.\n   - Capturing evidence as CI logs, Kubernetes events, dashboard snapshots, k6 summaries, Kibana queries, and RCA documents.\n\n3. **Chaos Engineering**:\n   - Failure simulation to identify hidden defects.\n   - Adding cloud-aware smoke checks, log assertions, or access validations.\n   - Attaching operational evidence to test results.\n\n4. **Contract Testing**:\n   - Validating API contracts by calling services directly and checking response shape, status, and key fields.\n   - Comparing UI/API results with database, event, or report sources.\n\n5. **General Cloud-Native QA Practices**:\n   - Treating cloud quality engineering as a system design problem.\n   - Focusing on creating reliable evidence about release risk.\n   - Using containerised tests, deployment smoke checks, readiness probes, log correlation, performance thresholds, and access matrix testing.\n   - Ensuring the framework has clear boundaries and leaves enough evidence for fast diagnosis.\n   - Capturing evidence as CI logs, Kubernetes events, dashboard snapshots, k6 summaries, Kibana queries, and RCA documents.\n\nThese practices can be applied to integrate chaos engineering and contract testing into ephemeral Kubernetes test environments, ensuring robust and reliable testing processes.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer covers the core requested practices, including chaos engineering, contract testing, and observability, and adds plausible related details. It omits synthetic monitoring explicitly but mentions k6 scripts, which are related, and the omission does not make the answer false or unusable."
+    },
+    {
+      "id": "giskard-5",
+      "giskard_id": "8144cd36-3e1d-46ee-a689-b9dc6c951061",
+      "question_type": "double",
+      "topic": "Others",
+      "prompt": "What does agentic test orchestration via MCP allow an LLM-driven test agent to do, and what requirements are mentioned for agentic test orchestration?",
+      "reference_answer": "It allows an LLM-driven test agent to navigate a system under test, generate inputs, observe outputs, and adapt the plan; it also requires guardrails around destructive actions and audit trails for non-determinism.",
+      "answer": "Agentic test orchestration via MCP allows an LLM-driven test agent to:\n\n1. **Reason through application structure**: The agent can dynamically explore and understand the structure of the application under test.\n2. **Formulate its own exploration strategies**: The agent can develop and execute its own strategies for testing the application.\n3. **Isolate bugs dynamically**: The agent can identify and isolate bugs in the application without relying on pre-authored linear paths.\n\nRequirements for agentic test orchestration mentioned in the context are:\n\n1. **Standardized way to share state, environmental data, and tool configurations**: This is addressed by the Model Context Protocol (MCP), which provides a unified interface for agent-to-environment interactions.\n2. **Deterministic, testable workflow orchestrators**: MCP turns autonomous agents from unreliable script-guessers into deterministic, testable workflow orchestrators.\n3. **Strict observability**: This is required to make agentic tests usable in production QA. The context mentions capturing trace fields such as trace_id, session_id, user_intent, selected_tool, arguments, permission_decision, resource_ids, model_output, final_answer, latency_ms, error_class, and human_confirmation_required.\n4. **Structured tools and strict schema enforcement**: This helps prevent tool hallucination, where the agent calls a tool that doesn't exist.\n5. **Summarization checkpoints**: These are needed to prevent context window blowout, where long exploration paths exceed limits.\n6. **Max-step bounds**: These are required to prevent the agent from getting stuck in a loop and re-tries forever.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The chatbot answer provides a plausible and relevant explanation of what agentic test orchestration via MCP enables, and lists multiple reasonable requirements. While it omits the explicit reference to guardrails around destructive actions and summarizes audit trails differently, the overall answer is useful, coherent, and does not contradict established facts."
+    }
+  ]
+}
