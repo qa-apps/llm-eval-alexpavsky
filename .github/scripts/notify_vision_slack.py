@@ -217,6 +217,17 @@ def main() -> int:
     steps = report.get("steps") or []
     dashboard_url = os.environ.get("VISION_AUDIT_DASHBOARD_URL", "").strip()
     video = report.get("video") or ""
+    video_url = (
+        f"{dashboard_url.rstrip('/')}/videos/{quote(Path(video).name)}"
+        if dashboard_url and video else ""
+    )
+    joined = slack_post(token, "conversations.join", {"channel": channel})
+    can_upload = bool(joined.get("ok"))
+    if not can_upload:
+        print(
+            f"Slack channel join unavailable ({joined.get('error')}); using published evidence links.",
+            file=sys.stderr,
+        )
 
     run_url = os.environ.get("GITHUB_RUN_URL", "")
     usage = report.get("model_usage") or {}
@@ -251,8 +262,9 @@ def main() -> int:
         f"*Candidate observations:* {len(report.get('candidate_findings') or [])} "
         f"(only calibrated findings can fail CI)\n"
         f"*Findings:*\n" + "\n".join(finding_lines(report)) + "\n"
-        "*Evidence:* every screenshot and the session video are attached in this thread; "
-        "raw JSON is available in the full report.\n"
+        "*Evidence:* screenshots, session video, and raw JSON are in the full Daily Audit UI. "
+        "Slack copies are attached when the bot has channel access.\n"
+        f"{f'<{video_url}|Session video>' if video_url else ''}\n"
         f"{' | '.join(link for link in (dashboard_link, run_link) if link)}\n"
         f"Every UI opening and AI input/output pair is documented in this thread."
     )
@@ -273,14 +285,16 @@ def main() -> int:
             step.get("screenshot", ""),
             f"{case_id}: {step.get('test_case_name') or step.get('title') or step.get('url')}",
             thread_ts,
-        )
-        if not screenshot_link:
+        ) if can_upload else ""
+        image_url = screenshot_url(dashboard_url, step.get("screenshot", ""))
+        if not screenshot_link and not image_url:
             delivered = False
-            print(f"Slack screenshot upload failed for {case_id}", file=sys.stderr)
+            print(f"No screenshot evidence link for {case_id}", file=sys.stderr)
         thread_result = slack_post(token, "chat.postMessage", {
             "channel": channel,
             "thread_ts": thread_ts,
-            "text": f"{case_id}: {step.get('summary') or 'No model summary.'}",
+            "text": (f"{case_id}: {step.get('summary') or 'No model summary.'}"
+                     + (f"\n<{image_url}|Screenshot>" if image_url else "")),
             "blocks": test_case_blocks(step, dashboard_url),
         })
         if not thread_result.get("ok"):
@@ -296,10 +310,10 @@ def main() -> int:
         video,
         "Agentic Vision Audit recording",
         thread_ts,
-    )
-    if not video_link:
+    ) if can_upload else ""
+    if not video_link and not video_url:
         delivered = False
-        print("Slack session-video upload failed", file=sys.stderr)
+        print("No Slack or published session-video link", file=sys.stderr)
     return 0 if delivered or not args.require_delivery else 1
 
 
