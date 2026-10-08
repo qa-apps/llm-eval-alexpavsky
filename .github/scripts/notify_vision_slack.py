@@ -10,7 +10,7 @@ import os
 import sys
 import urllib.request
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 
@@ -29,6 +29,21 @@ def slack_post(token: str, method: str, payload: dict) -> dict:
         return json.loads(response.read())
 
 
+def slack_form(token: str, method: str, payload: dict) -> dict:
+    """Slack's upload URL method expects form encoded filename and length."""
+    request = urllib.request.Request(
+        f"https://slack.com/api/{method}",
+        data=urlencode(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read())
+
+
 def upload_file(
     token: str,
     channel: str,
@@ -39,7 +54,7 @@ def upload_file(
     path = Path(file_path)
     if not path.is_file() or path.stat().st_size > MAX_UPLOAD_BYTES:
         return ""
-    prepared = slack_post(token, "files.getUploadURLExternal", {
+    prepared = slack_form(token, "files.getUploadURLExternal", {
         "filename": path.name,
         "length": path.stat().st_size,
     })
