@@ -44,7 +44,7 @@ jobs:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 480
+    timeout-minutes: 360
     outputs:
       eval_day: ${{ steps.eval_day.outputs.date }}
       completion_ready: ${{ steps.completion_ready.outputs.ready }}
