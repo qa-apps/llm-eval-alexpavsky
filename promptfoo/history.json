@@ -412,5 +412,14 @@
     "total": 10,
     "commit": "e67a174",
     "run_id": "38428127485"
+  },
+  {
+    "run_number": "236",
+    "timestamp": "2026-10-16T13:23:28+00:00",
+    "passed": 10,
+    "failed": 0,
+    "total": 10,
+    "commit": "e67a174",
+    "run_id": "38907256774"
   }
 ]
