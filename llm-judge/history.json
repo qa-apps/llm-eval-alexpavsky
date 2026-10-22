@@ -562,5 +562,16 @@
     "verdicts": 24,
     "commit": "e67a174",
     "run_id": "39605964806"
+  },
+  {
+    "run_number": "272",
+    "timestamp": "2026-10-22T13:16:53+00:00",
+    "passed": 19,
+    "failed": 0,
+    "total": 20,
+    "avg_score": 4.88,
+    "verdicts": 24,
+    "commit": "e67a174",
+    "run_id": "39784647634"
   }
 ]
