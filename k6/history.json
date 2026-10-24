@@ -704,5 +704,15 @@
     "max_p95_ms": 390,
     "commit": "e67a174",
     "run_id": "39955004592"
+  },
+  {
+    "run_number": "197",
+    "timestamp": "2026-10-24T12:04:24+00:00",
+    "profiles": 2,
+    "requests": 1512,
+    "failed_calls": 0,
+    "max_p95_ms": 390,
+    "commit": "e67a174",
+    "run_id": "40092310574"
   }
 ]
