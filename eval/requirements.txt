@@ -8,6 +8,8 @@ datasets==5.0.1
 requests==2.34.2
 python-dotenv==1.2.3
 giskard[llm]==2.19.2
+# pyarrow (via giskard) needs NumPy 2; an unpinned 1.26.4 install skipped #ragas/#giskard Slack.
+numpy>=2.0,<3
 pandas==2.3.3
 ipython==9.17.1
 pytest==9.0.3
