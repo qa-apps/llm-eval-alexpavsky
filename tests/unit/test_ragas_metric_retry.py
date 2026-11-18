@@ -53,6 +53,7 @@ class RagasMetricRetryTests(unittest.TestCase):
             source.find("api.deepseek.com"),
         )
         self.assertIn("timeout", source)
+        self.assertIn("glm-5.3-flash", source)
 
 
 if __name__ == "__main__":
