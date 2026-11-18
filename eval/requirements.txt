@@ -8,7 +8,7 @@ langchain-community==0.3.31
 langchain-openai==1.1.14
 langchain-huggingface==1.2.2
 sentence-transformers==6.1.0
-datasets==4.0.0
+datasets==5.0.1
 requests==2.34.2
 python-dotenv==1.2.3
 giskard[llm]==2.19.2
