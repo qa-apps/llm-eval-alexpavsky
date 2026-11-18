@@ -45,6 +45,15 @@ class RagasMetricRetryTests(unittest.TestCase):
 
         self.assertEqual(samples_missing_metrics(records, samples), samples)
 
+    def test_opencode_is_first_prepaid_judge(self):
+        source = Path("eval/rotating_llm.py").read_text(encoding="utf-8")
+        self.assertIn("OPENCODE_GO_API_KEY", source)
+        self.assertLess(
+            source.find("opencode.ai/zen/go/v1"),
+            source.find("api.deepseek.com"),
+        )
+        self.assertIn("timeout", source)
+
 
 if __name__ == "__main__":
     unittest.main()

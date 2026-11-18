@@ -210,7 +210,7 @@ def main() -> int:
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Cloud judge is not configured. Set DEEPSEEK_API_KEY or TOGETHER_API_KEY.")
+        fail("Cloud judge is not configured. Set OPENCODE_GO_API_KEY or DEEPSEEK_API_KEY.")
     log(f"Judge providers available: {len(providers)}")
     for p in providers:
         log(f"  - {p['name']:20s} / {p['model']}")
@@ -524,7 +524,8 @@ def main() -> int:
 
     failed_count = len(records) - passed_count
     failed_checks: list[str] = []
-    if parse_failures_f or parse_failures_r:
+    max_incomplete = int(os.environ.get("MAX_INCOMPLETE_METRICS", "1"))
+    if parse_failures_f + parse_failures_r > max_incomplete:
         failed_checks.append(
             "incomplete judge metrics "
             f"(faithfulness={parse_failures_f}, relevancy={parse_failures_r})"

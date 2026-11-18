@@ -220,7 +220,7 @@ def main() -> None:
     from rotating_llm import build_provider_list
     providers = build_provider_list()
     if not providers:
-        fail("Cloud judge is not configured. Set DEEPSEEK_API_KEY or TOGETHER_API_KEY.")
+        fail("Cloud judge is not configured. Set OPENCODE_GO_API_KEY or DEEPSEEK_API_KEY.")
 
     from rotating_llm import configure_giskard
     primary_label = configure_giskard(providers, log)
