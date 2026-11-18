@@ -315,13 +315,16 @@ jobs:
 
       - name: Notify Slack
         id: notify_ragas
-        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_RUN_ID: ${{ github.run_id }}
           REPO_NAME: ${{ github.event.repository.name }}
           OWNER_LC: ${{ github.repository_owner }}
+          GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT_CONTRACT: ${{ steps.report_contract.outcome }}
+          PAGES_BUILD: ${{ steps.build_pages.outcome }}
         run: |
           OWNER_LC=$(echo "$OWNER_LC" | tr '[:upper:]' '[:lower:]')
           # Read pass/fail counts written by eval/ragas_eval.py (summary.json).
@@ -333,6 +336,14 @@ jobs:
             PASSED=$(python3 -c "import json; print(json.load(open('eval/results/summary.json'))['passed'])")
             FAILED=$(python3 -c "import json; print(json.load(open('eval/results/summary.json'))['failed'])")
           fi
+          PAGES_URL="https://${OWNER_LC}.github.io/${REPO_NAME}/runs/${{ github.run_number }}/#ragas"
+          if [ "$REPORT_CONTRACT" = "success" ] && [ "$PAGES_BUILD" = "success" ]; then
+            DASHBOARD="$PAGES_URL"
+            DASHBOARD_LABEL="Open Ragas report"
+          else
+            DASHBOARD="$GITHUB_RUN_URL"
+            DASHBOARD_LABEL="View run"
+          fi
           python .github/scripts/notify_slack.py \
             --channel "${{ secrets.SLACK_RAGAS_CHANNEL_ID }}" \
             --pipeline "RAG Eval Nightly" \
@@ -340,27 +351,35 @@ jobs:
             --failed "${FAILED:-0}" \
             --flaky 0 \
             --skipped 0 \
-            --dashboard-url "https://${OWNER_LC}.github.io/${REPO_NAME}/runs/${{ github.run_number }}/#ragas" \
-            --dashboard-label "Open Ragas report" \
+            --dashboard-url "$DASHBOARD" \
+            --dashboard-label "$DASHBOARD_LABEL" \
             --require-delivery
 
       - name: Notify Giskard Slack
         id: notify_giskard
-        if: always() && steps.cloud_judge.outputs.run == 'true' && steps.report_contract.outcome == 'success'
+        if: always() && steps.cloud_judge.outputs.run == 'true'
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           REPO_NAME: ${{ github.event.repository.name }}
           OWNER_LC: ${{ github.repository_owner }}
+          REPORT_CONTRACT: ${{ steps.report_contract.outcome }}
+          PAGES_BUILD: ${{ steps.build_pages.outcome }}
         run: |
           OWNER_LC=$(echo "$OWNER_LC" | tr '[:upper:]' '[:lower:]')
           # Giskard RAG correctness + 7-category vuln scan -> its own channel,
           # separate from the Ragas faithfulness/relevancy summary above.
+          PAGES_URL="https://${OWNER_LC}.github.io/${REPO_NAME}/runs/${{ github.run_number }}/giskard.html"
+          if [ "$REPORT_CONTRACT" = "success" ] && [ "$PAGES_BUILD" = "success" ]; then
+            DASHBOARD="$PAGES_URL"
+          else
+            DASHBOARD="$GITHUB_RUN_URL"
+          fi
           python .github/scripts/notify_giskard_slack.py \
             --channel "${{ secrets.SLACK_GISKARD_CHANNEL_ID }}" \
             --results-dir eval/results \
             --run-url "$GITHUB_RUN_URL" \
-            --dashboard-url "https://${OWNER_LC}.github.io/${REPO_NAME}/runs/${{ github.run_number }}/giskard.html" \
+            --dashboard-url "$DASHBOARD" \
             --require-delivery
 
       - name: Send failure email (severity-tagged)

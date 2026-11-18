@@ -157,8 +157,8 @@ def main() -> int:
     )
     parser.add_argument(
         "--local-ui-url",
-        default=os.environ.get("PROMPTFOO_LOCAL_UI_URL", "http://localhost:15500"),
-        help="Local `promptfoo view` URL; pass an empty string to hide the button",
+        default=os.environ.get("PROMPTFOO_LOCAL_UI_URL", ""),
+        help="Optional local `promptfoo view` URL; empty hides the button (Pages URL is the public Open UI)",
     )
     args = parser.parse_args()
 
