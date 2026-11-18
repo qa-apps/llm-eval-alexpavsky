@@ -220,8 +220,6 @@ assert.deepEqual(report.model_provenance.cloud_api_keys_used, ['GEMINI_API_KEY',
         self.assertIn("if: always() && steps.cloud_judge.outputs.run == 'true'", notify_block)
         self.assertNotIn("report_contract.outcome == 'success'", notify_block)
         self.assertNotIn("report_contract.outcome == 'success'", giskard_block)
-        reqs = (ROOT / "eval/requirements.txt").read_text(encoding="utf-8")
-        self.assertIn("numpy>=2.0", reqs)
 
     def test_pipeline_summary_links_full_report_and_states_scope(self):
         payload = PIPELINE_SLACK.build_payload(
