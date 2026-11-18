@@ -46,7 +46,7 @@ def build_provider_list() -> list[dict[str, str]]:
                 or os.environ.get("LLM_BASE_URL", "").strip()
                 or "https://opencode.ai/zen/go/v1"
             ),
-            "model": os.environ.get("OPENCODE_JUDGE_MODEL", "qwen3.8-flash"),
+            "model": os.environ.get("OPENCODE_JUDGE_MODEL", "glm-5.3-flash"),
         })
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if deepseek_key:
@@ -75,6 +75,7 @@ ROTATE_ON_PATTERNS = (
     "rate", "429", "quota", "limit", "credit", "exhaust",
     "402", "401", "insufficient", "out of tokens", "tpd", "rpd", "tpm",
     "timeout", "timed out", "1113",
+    "bad request", "invalid_request", "response_format",
 )
 
 PRIORITY_INTERRUPTION_PATTERNS = (
@@ -206,8 +207,9 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
         timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
         max_retries=2,
     )
+    json_mode = not str(provider["model"]).startswith("qwen")
     giskard.llm.set_default_client(
-        OpenAIClient(model=provider["model"], client=openai_client, json_mode=True)
+        OpenAIClient(model=provider["model"], client=openai_client, json_mode=json_mode)
     )
     log_fn(f"  Judge: {provider['model']} via {provider['base_url']}")
 
