@@ -32,11 +32,18 @@ RESULTS_DIR = Path(__file__).parent / "results"
 RESULTS_DIR.mkdir(exist_ok=True)
 
 
-def judge_headers(model: str, api_key: str) -> dict[str, str]:
-    return {
+def judge_headers(model: str, api_key: str, base_url: str = "") -> dict[str, str]:
+    headers = {
         "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
         "X-QA-Run-ID": os.environ.get("GITHUB_RUN_ID", "giskard-eval"),
+        "User-Agent": "Mozilla/5.0 (compatible; llm-eval-alexpavsky/1.0)",
     }
+    if "opencode.ai" in (base_url or ""):
+        headers["x-opencode-session"] = (
+            os.environ.get("OPENCODE_SESSION") or "llm-eval-alexpavsky"
+        )
+    return headers
 
 
 def log(msg: str) -> None:
@@ -106,42 +113,48 @@ class PermissiveCorrectnessMetric:
         self.provider = provider
 
     def __call__(self, question_sample, answer) -> dict:
-        response = requests.post(
-            f"{self.provider['base_url']}/chat/completions",
-            headers=judge_headers(
-                self.provider["model"], self.provider["api_key"]
-            ),
-            json={
-                "model": self.provider["model"],
-                "temperature": 0,
-                "max_tokens": int(os.environ.get("JUDGE_MAX_TOKENS", "2048")),
-                "response_format": {"type": "json_object"},
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "Evaluate whether a chatbot answer is basically useful, relevant, and "
-                            "plausible. The reference is one acceptable example, not an exhaustive "
-                            "checklist, so the answer may give different valid facts or examples. "
-                            "Be permissive about wording, tone, brevity, omitted details, and mild "
-                            "irrelevance. Mark false only when the answer is empty, clearly fails "
-                            "to answer the question, contradicts established facts, or contains "
-                            "obviously fabricated material facts. Return exactly one JSON object "
-                            "with boolean correctness and string correctness_reason."
-                        ),
-                    },
-                    {
-                        "role": "user",
-                        "content": (
-                            f"Question: {question_sample.question}\n\n"
-                            f"Reference answer: {question_sample.reference_answer}\n\n"
-                            f"Chatbot answer: {answer.message}"
-                        ),
-                    },
-                ],
-            },
-            timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
+        body = {
+            "model": self.provider["model"],
+            "temperature": 0,
+            "max_tokens": int(os.environ.get("JUDGE_MAX_TOKENS", "2048")),
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "Evaluate whether a chatbot answer is basically useful, relevant, and "
+                        "plausible. The reference is one acceptable example, not an exhaustive "
+                        "checklist, so the answer may give different valid facts or examples. "
+                        "Be permissive about wording, tone, brevity, omitted details, and mild "
+                        "irrelevance. Mark false only when the answer is empty, clearly fails "
+                        "to answer the question, contradicts established facts, or contains "
+                        "obviously fabricated material facts. Return exactly one JSON object "
+                        "with boolean correctness and string correctness_reason."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Question: {question_sample.question}\n\n"
+                        f"Reference answer: {question_sample.reference_answer}\n\n"
+                        f"Chatbot answer: {answer.message}"
+                    ),
+                },
+            ],
+        }
+        # OpenCode GLM-5.3-flash returns 400 on response_format=json_object.
+        if "opencode.ai" not in (self.provider.get("base_url") or ""):
+            body["response_format"] = {"type": "json_object"}
+        url = f"{self.provider['base_url'].rstrip('/')}/chat/completions"
+        headers = judge_headers(
+            self.provider["model"],
+            self.provider["api_key"],
+            self.provider.get("base_url") or "",
         )
+        timeout = int(os.environ.get("JUDGE_TIMEOUT_SEC", "120"))
+        response = requests.post(url, headers=headers, json=body, timeout=timeout)
+        if response.status_code == 400 and "response_format" in body:
+            body.pop("response_format")
+            response = requests.post(url, headers=headers, json=body, timeout=timeout)
         response.raise_for_status()
         payload = response.json()
         content = (payload["choices"][0]["message"].get("content") or "").strip()

@@ -207,7 +207,7 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
         timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
         max_retries=2,
     )
-    json_mode = not str(provider["model"]).startswith("qwen")
+    json_mode = provider.get("name") == "deepseek"
     giskard.llm.set_default_client(
         OpenAIClient(model=provider["model"], client=openai_client, json_mode=json_mode)
     )
