@@ -16,29 +16,56 @@ from pydantic import ConfigDict, Field
 log = logging.getLogger("rotating-llm")
 
 
-def lifecycle_headers(model: str) -> dict[str, str]:
+def lifecycle_headers(model: str, base_url: str = "") -> dict[str, str]:
     """Tag requests with the QA run for provider-side diagnostics."""
-    return {
+    headers = {
         "X-QA-Run-ID": os.environ.get("GITHUB_RUN_ID", "local-rag-eval"),
+        "User-Agent": "Mozilla/5.0 (compatible; llm-eval-alexpavsky/1.0)",
     }
+    if "opencode.ai" in (base_url or ""):
+        headers["x-opencode-session"] = (
+            os.environ.get("OPENCODE_SESSION") or "llm-eval-alexpavsky"
+        )
+    return headers
 
 
 def build_provider_list() -> list[dict[str, str]]:
-    """Prefer DeepSeek; Together is an optional independent cloud fallback."""
+    """OpenCode Go first (prepaid), then metered DeepSeek / Together."""
     providers: list[dict[str, str]] = []
+    opencode_key = (
+        os.environ.get("OPENCODE_GO_API_KEY", "").strip()
+        or os.environ.get("OPENCODE_API_KEY", "").strip()
+        or os.environ.get("LLM_API_KEY", "").strip()
+    )
+    if opencode_key:
+        providers.append({
+            "name": "opencode",
+            "api_key": opencode_key,
+            "base_url": (
+                os.environ.get("OPENCODE_BASE_URL", "").strip()
+                or os.environ.get("LLM_BASE_URL", "").strip()
+                or "https://opencode.ai/zen/go/v1"
+            ),
+            "model": os.environ.get("OPENCODE_JUDGE_MODEL", "qwen3.8-flash"),
+        })
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY", "").strip()
     if deepseek_key:
         providers.append({
             "name": "deepseek", "api_key": deepseek_key,
             "base_url": "https://api.deepseek.com/v1",
-            "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro"),
+            "model": os.environ.get("DEEPSEEK_MODEL", "deepseek-chat"),
         })
     together_key = os.environ.get("TOGETHER_API_KEY", "").strip()
     if together_key:
+        together_model = os.environ.get(
+            "TOGETHER_MODEL", "deepseek-ai/DeepSeek-V4.1-Flash"
+        )
+        if together_model.endswith("DeepSeek-V4-Flash-0731"):
+            together_model = "deepseek-ai/DeepSeek-V4.1-Flash"
         providers.append({
             "name": "together", "api_key": together_key,
             "base_url": "https://api.together.xyz/v1",
-            "model": os.environ.get("TOGETHER_MODEL", "deepseek-ai/DeepSeek-V4-Flash-0731"),
+            "model": together_model,
         })
     return providers
 
@@ -47,6 +74,7 @@ def build_provider_list() -> list[dict[str, str]]:
 ROTATE_ON_PATTERNS = (
     "rate", "429", "quota", "limit", "credit", "exhaust",
     "402", "401", "insufficient", "out of tokens", "tpd", "rpd", "tpm",
+    "timeout", "timed out", "1113",
 )
 
 PRIORITY_INTERRUPTION_PATTERNS = (
@@ -89,7 +117,7 @@ class RotatingJudgeLLM(BaseChatModel):
             model=provider["model"],
             base_url=provider["base_url"],
             api_key=provider["api_key"],
-            default_headers=lifecycle_headers(provider["model"]),
+            default_headers=lifecycle_headers(provider["model"], provider["base_url"]),
             temperature=self.temperature,
             max_tokens=max_tokens,
             extra_body={"reasoning_effort": "low"} if provider["name"] == "deepseek" else {},
@@ -174,7 +202,7 @@ def configure_giskard(providers: list[dict[str, str]], log_fn=print) -> str:
     openai_client = openai.OpenAI(
         base_url=provider["base_url"],
         api_key=provider["api_key"],
-        default_headers=lifecycle_headers(provider["model"]),
+        default_headers=lifecycle_headers(provider["model"], provider["base_url"]),
         timeout=int(os.environ.get("JUDGE_TIMEOUT_SEC", "120")),
         max_retries=2,
     )
