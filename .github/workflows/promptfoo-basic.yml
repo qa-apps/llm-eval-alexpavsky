@@ -188,7 +188,7 @@ jobs:
             --channel "${{ secrets.SLACK_PROMPTFOO_RESULTS_CHANNEL_ID }}" \
             --results promptfoo-results.json \
             --dashboard-url "$PROMPTFOO_DASHBOARD_URL" \
-            --local-ui-url "${{ vars.PROMPTFOO_LOCAL_UI_URL }}" \
+            --local-ui-url "" \
             --require-delivery
 
       - name: Report incomplete Promptfoo evaluation
