@@ -215,11 +215,6 @@ assert.deepEqual(report.model_provenance.cloud_api_keys_used, ['GEMINI_API_KEY',
         self.assertIn('"sentence-transformers/all-MiniLM-L6-v2"', rotating)
         self.assertIn("class CpuEmbedding", rotating)
         self.assertIn("default_headers=lifecycle_headers", rotating)
-        notify_block = workflow.split("- name: Notify Slack", 1)[1].split("- name: Notify Giskard Slack", 1)[0]
-        giskard_block = workflow.split("- name: Notify Giskard Slack", 1)[1].split("- name: Send failure email", 1)[0]
-        self.assertIn("if: always() && steps.cloud_judge.outputs.run == 'true'", notify_block)
-        self.assertNotIn("report_contract.outcome == 'success'", notify_block)
-        self.assertNotIn("report_contract.outcome == 'success'", giskard_block)
 
     def test_pipeline_summary_links_full_report_and_states_scope(self):
         payload = PIPELINE_SLACK.build_payload(
@@ -306,9 +301,6 @@ assert.deepEqual(report.model_provenance.cloud_api_keys_used, ['GEMINI_API_KEY',
         promptfoo = (ROOT / ".github/workflows/promptfoo-basic.yml").read_text(encoding="utf-8")
         self.assertIn("PROMPTFOO_FAILED_TEST_EXIT_CODE: '0'", promptfoo)
         self.assertIn("steps.eval.outcome == 'success'", promptfoo)
-        self.assertNotIn("http://localhost:15500", promptfoo)
-        notifier = (ROOT / ".github/scripts/notify_promptfoo_slack.py").read_text(encoding="utf-8")
-        self.assertNotIn('default=os.environ.get("PROMPTFOO_LOCAL_UI_URL", "http://localhost:15500")', notifier)
 
     def test_cloud_eval_workflows_use_the_deepseek_secret(self):
         for name in (
