@@ -378,18 +378,23 @@ assert.deepEqual(report.model_provenance.cloud_api_keys_used, ['GEMINI_API_KEY',
             screenshot.flush()
             with mock.patch.object(
                 SLACK,
+                "slack_form",
+                return_value={
+                    "ok": True,
+                    "upload_url": "https://upload.slack.test",
+                    "file_id": "F1",
+                },
+            ), mock.patch.object(
+                SLACK,
                 "slack_post",
-                side_effect=[
-                    {"ok": True, "upload_url": "https://upload.slack.test", "file_id": "F1"},
-                    {"ok": True, "files": [{"permalink": "https://slack.test/F1"}]},
-                ],
+                return_value={"ok": True, "files": [{"permalink": "https://slack.test/F1"}]},
             ) as slack_post, mock.patch.object(SLACK.urllib.request, "urlopen"):
                 link = SLACK.upload_file(
                     "token", "C123", screenshot.name, "VISION-001", "1717.0001"
                 )
 
         self.assertEqual(link, "https://slack.test/F1")
-        completion = slack_post.call_args_list[1].args[2]
+        completion = slack_post.call_args.args[2]
         self.assertEqual(completion["channel_id"], "C123")
         self.assertEqual(completion["thread_ts"], "1717.0001")
 
@@ -411,7 +416,11 @@ assert.deepEqual(report.model_provenance.cloud_api_keys_used, ['GEMINI_API_KEY',
             }, clear=True), mock.patch("sys.argv", argv), mock.patch.object(
                 SLACK,
                 "slack_post",
-                side_effect=[{"ok": True, "ts": "1717.0001"}, {"ok": True}],
+                side_effect=[
+                    {"ok": True},
+                    {"ok": True, "ts": "1717.0001"},
+                    {"ok": True},
+                ],
             ), mock.patch.object(
                 SLACK,
                 "upload_file",
