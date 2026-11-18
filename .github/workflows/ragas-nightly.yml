@@ -219,7 +219,14 @@ jobs:
               raise SystemExit("Ragas report is missing prompt, answer, or verdict fields")
           if any(not isinstance(c.get("faithfulness"), (int, float)) or not isinstance(c.get("relevancy"), (int, float)) for c in ragas):
               raise SystemExit("Ragas report contains missing judge metrics")
-          if not giskard or not all(c.get("prompt") and c.get("answer") and c.get("status") in {"PASS", "FAIL"} for c in giskard):
+          if not giskard or not all(
+              c.get("prompt")
+              and isinstance(c.get("answer"), str)
+              and c.get("status") in {"PASS", "FAIL"}
+              for c in giskard
+          ):
+              # An empty answer is a real FAIL (RAG timeout/blank). Do not
+              # treat it as a missing report field.
               raise SystemExit("Giskard report is missing prompt, answer, or verdict fields")
 
           def validate_outcome(label, data, outcome):
