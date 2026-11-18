@@ -1,0 +1,42 @@
+{
+  "run_number": 340,
+  "run_id": "44277935318",
+  "timestamp": "2026-11-18T09:46:18+00:00",
+  "commit": "c0b4ab2",
+  "ragas": {
+    "avg_faithfulness": 1.0,
+    "avg_relevancy": 0.816,
+    "status": "fail"
+  },
+  "ragas_counts": {
+    "passed": 10,
+    "failed": 0,
+    "total": 10
+  },
+  "giskard_rag": {
+    "rag_api": "https://alexpavsky.com",
+    "num_questions": 5,
+    "judge": "opencode/glm-5.3-flash",
+    "correctness": 1.0,
+    "minimum_correctness": 0.5,
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "evaluation_completed": true,
+    "quality_passed": true
+  },
+  "giskard_counts": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5
+  },
+  "giskard_scan": {},
+  "files": [
+    "report.md",
+    "summary.json",
+    "ragas_cases.json",
+    "giskard_rag.html",
+    "giskard_rag.json",
+    "giskard_rag_cases.json"
+  ]
+}

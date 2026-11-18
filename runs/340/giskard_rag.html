@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+
+
+<style>
+    body{
+  background: #18181B;
+}
+
+.main{
+  font-family: "Noto Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  color: #FDFDFD;
+}
+
+h1 {
+  font-size: 2.5rem;
+  color: white;
+}
+
+h3 {
+  font-size: 1.5rem;
+  background: #0c087c;
+  padding: 10px;
+  margin: 0px;
+  border: 1px solid #6b7280;}
+
+.extended-title{
+  width:100%;
+}
+
+#gsk-overview{
+  display:flex;
+}
+
+h4 {
+  font-size: 1rem;
+  background: #27272A;
+  padding: 10px;
+  margin: 0px;
+  border-bottom: 1px solid #6b7280;
+}
+
+h2 {
+  font-size: 1.5rem;
+  margin-top: 3px;
+  color:#000000;
+}
+
+.header{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.header > * {
+  margin-inline: 20px;
+}
+
+.flex-row {
+  display: flex;
+  flex-direction: row;
+  padding:10px;
+  border: 1px solid #27272A;
+}
+
+.flex-row>div {
+  flex: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+progress[value] {
+  --background: #6D6D6D;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  border: none;
+  height: 4px;
+  margin: 0 10px;
+  border-radius: 10em;
+  background: var(--background);
+}
+
+progress[value]::-webkit-progress-bar {
+  border-radius: 10em;
+  background: var(--background);
+}
+
+progress[value]::-webkit-progress-value {
+  border-radius: 10em;
+  background: var(--color);
+}
+
+progress[value]::-moz-progress-bar {
+  border-radius: 10em;
+  background: var(--color);
+}
+
+label {
+  font-size: 20px;
+  font-weight: bold;
+  display: block;
+  margin: 20px 0;
+}
+
+.tab {
+  overflow: hidden;
+  border: 1px solid #27272A;
+  background-color: #27272A;
+}
+
+.tab button {
+  background-color: inherit;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  transition: 0.3s;
+  color: #ffffff;
+  font-size:1.2rem;
+}
+
+.tab div {
+  background-color: inherit;
+  float: left;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  padding: 14px 16px;
+  transition: 0.3s;
+  color: #ffffff;
+  font-size: 1.2rem;
+}
+
+.tab button:hover {
+  background-color: #18181B;
+}
+
+.tab-title{
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom:-5px;
+}
+
+.tab button.active {
+  background-color: #18181B;
+  border-top: 1px solid #6b7280;
+  border-bottom: 1px solid #18181B;
+  border-left: 1px solid #6b7280;
+  border-right: 1px solid #6b7280;
+}
+
+.tabcontent {
+  display: none;
+  padding: 6px 12px;
+  background: #18181B;
+  border: 1px solid #27272A;
+  border-top: 1px solid #6b7280;
+  margin-top: -2px;
+}
+
+#gsk-advice {
+  display: flex;
+  justify-content: center;
+}
+
+#gsk-metrics{
+  width:100%;
+}
+
+#recommendation {
+  margin-top: 20px;
+  padding: 20px;
+  border-radius: 10px;
+  background-color: #e1ce86;
+  color: #27272A;
+  width:95%;
+  box-shadow: 0 4px 8px 0 #000000, 0 6px 20px 0 #000000;
+  font-size: 12pt;
+}
+
+.separator {
+  margin: 20px 0;
+}
+
+.separator-border {
+  margin: 20px 0;
+  border-bottom: 1px solid #6b7280;
+}
+
+#gsk-rag{
+  margin: 32px 28px;
+  padding: 12px 24px;
+  background-color: #111516;
+}
+
+.section-container {
+  margin-bottom: 32px;
+}
+
+  .components-container {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: flex-start;
+    gap: 0 32px;
+  }
+
+    .component-card {
+      background-color: #14191B;
+      border-radius: 16px;
+      padding: 28px 32px 32px 32px;
+      display: flex;
+      flex-flow: column;
+      align-items: center;
+      margin-top: 32px;
+      flex-grow: 1;
+    }
+
+    .component-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #B1B1B1;
+      padding-bottom: 8px;
+    }
+
+    .component-value {
+      font-size: 32px;
+      font-weight: 500;
+      padding-bottom: 12px;
+    }
+      
+      .text-green {
+        color: #04B543;
+      }
+      
+      .text-orange {
+        color: #E76E0F;
+      }
+      
+      .text-red {
+        color: #EA3829;
+      }
+
+      .tooltip {
+        position: relative;
+        display: inline-block;
+      }
+
+      .tooltip .tooltiptext {
+        visibility: hidden;
+        width: 120px;
+        background-color: #464646;
+        color: #E6E6E6;
+        text-align: center;
+        border-radius: 6px;
+        position: absolute;
+        z-index: 1;
+        top: 150%;
+        left: 50%;
+        margin-left: -60px;
+        font-size: 12px;
+        padding: 12px;
+      }
+      
+      .tooltip .tooltiptext::after {
+        content: "";
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        margin-left: -5px;
+        border-width: 5px;
+        border-style: solid;
+        border-color: transparent transparent black transparent;
+      }
+      
+      .tooltip:hover .tooltiptext {
+        visibility: visible;
+      }
+
+    .overall-card {
+      background-color: #026836;
+      border-radius: 16px;
+      padding: 28px 32px 32px 32px;
+      display: flex;
+      flex-flow: column;
+      align-items: center;
+      justify-content: center;
+      margin-top: 32px;
+      flex-grow: 1;
+    }
+  
+    .overall-title {
+      font-size: 12px;
+      font-weight: 500;
+      color: #E6E6E6;
+      padding: 14px 0 8px 0;
+      text-transform: uppercase;
+     }
+  
+    .overall-value {
+      font-size: 32px;
+      font-weight: 500;
+      padding-bottom: 12px;
+      color: #E6E6E6;
+    }
+
+.section-title {
+  font-size: 12px;
+  color: #B1B1B1;
+  margin-bottom: 20px;
+  text-align: left;
+  width: 100%;
+}
+
+.section-content {
+  color: #E6E6E6;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.section-card {
+  background-color: #14191B;
+  border-radius: 16px;
+  padding: 28px 32px 32px 32px;
+  display: flex;
+  flex-flow: column;
+  align-items: center;
+}
+
+.correctness-indicator{
+  padding: 20px;
+  border-radius: 50px;
+  font-size: 16pt;
+  box-shadow: 0 4px 8px 0 #000000, 0 6px 20px 0 #000000;
+  text-align: center;
+}
+
+.metric-title{
+  margin: -2px;
+  border-bottom: none;
+}
+
+.hist-row {
+  display: flex;
+  flex-direction: row;
+  padding: 10px;
+  justify-content: space-around;
+  width: 85%;
+}
+
+.hist-row>div {
+  flex: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding-left: 1%;
+  padding-right: 1%;
+}
+
+.tab-row{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#component-table{
+  width:50%;
+  margin-top: 10px;
+}
+
+.green{
+  background-color: #0a980a;
+}
+
+.orange {
+  background-color: #e5b62a;
+}
+
+.red {
+  background-color: #ba0e0e;
+}
+
+.progress-green {
+  --color: #04B543;
+}
+
+.progress-orange {
+  --color: #E76E0F;
+}
+
+.progress-red {
+  --color: #EA3829;
+}
+
+.corr-plot{
+  flex: 1;
+  padding-left: 2%;
+}
+
+.tooltip-text {
+  position: absolute;
+  display: none;
+  visibility: hidden;
+  z-index: 1;
+  top: 100%;
+  left: 0%;
+  width: 100%;
+  color: white;
+  font-size: 12px;
+  background-color: #2d3d4c;
+  border-radius: 10px;
+  padding: 10px 15px 10px 15px;
+}
+
+#fade {
+  opacity: 1;
+  transition: opacity 0.5s;
+}
+
+#delay {
+  opacity: 0;
+  transition: opacity 0.2s;
+  transition-delay: 1s;
+}
+
+td {
+  position: relative;
+}
+
+tr:hover .tooltip-text {
+  display: block;
+  visibility: visible;
+}
+
+.tr:hover #fade {
+  opacity: 1;
+}
+
+.tr:hover #delay {
+  opacity: 1;
+}
+
+.callout {
+  padding: 0.5rem 1rem 0.5rem 3rem;
+  background: #D9EDF9;
+  border: 3px solid #0088D1;
+  color: #272eb5;
+  position: relative;
+  max-width: 40rem;
+  border-radius: 10px;
+  margin-top: 10%;
+  font-size: 11pt;
+}
+
+.callout-icon {
+  content: "";
+
+  /* SVG via a data URI! */
+  background-size: cover;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: block;
+  position: absolute;
+  left: 0.9rem;
+  top: 1.1rem;
+}
+
+.callout-icon svg{
+  fill: #016ca7;
+}
+.callout p+p {
+  margin-top: 1em;
+}
+
+.callout a {
+  color: #272eb5;
+  font-weight: bold;
+}
+
+#gsk-logo {
+  padding-top: 10px;
+}
+</style>
+<script src="https://cdn.bokeh.org/bokeh/release/bokeh-3.3.4.min.js" integrity="sha384-5QIrjQuyo4I/x6DK/Sau33lcA3hT2TCZGr9vbk+2ebd7Da6FnR1amdM+9B5xOrSf" crossorigin="anonymous"></script>
+<script src="https://cdn.bokeh.org/bokeh/release/bokeh-gl-3.3.4.min.js" integrity="sha384-tXTWPp/bAKa+K9RPuXh7DNvye0Mv+P+6y4rAMVy+pWapsnXg9UG7g20WZ0N4i28A" crossorigin="anonymous"></script>
+
+
+
+
+
+<div class="main">
+    <div id="gsk-rag" class="dark:text-white dark:bg-zinc-800 rounded border border-gray-500">
+        <div class="header border-b border-b-gray-500">
+            
+                <svg xmlns="http://www.w3.org/2000/svg" width="60" height="30" viewBox="0 0 30 15" fill="none" id="gsk-logo">
+                    <path fill="#fff" fill-rule="evenodd"
+                        d="M22.504 1.549a4.196 4.196 0 0 1 2.573-.887v.002a3.783 3.783 0 0 1 2.706 1.086 3.783 3.783 0 0 1 1.126 2.69 3.771 3.771 0 0 1-1.126 2.69 3.77 3.77 0 0 1-2.706 1.085l-4.794.011-2.533 3.467L8.203 15l2.881-3.335a9.829 9.829 0 0 1-4.663-1.68H3.185L0 7.163h3.934C4.263 3.165 8.187 0 12.96 0c2.24 0 4.489.696 6.175 1.909a7.423 7.423 0 0 1 1.882 1.919 4.194 4.194 0 0 1 1.487-2.28ZM7.05 3.249l3.91 3.915h1.505L7.89 2.584a7.773 7.773 0 0 0-.84.665Zm4.079-2.008 5.923 5.923h1.503l-6.086-6.087c-.45.023-.898.078-1.34.164ZM4.574 8.226h-1.77l.784.693h1.584a8.454 8.454 0 0 1-.598-.693Zm9.479 0H5.984c1.469 1.477 3.656 2.377 5.977 2.422l2.092-2.422Zm-2.458 4.472 5.492-1.902 1.878-2.569h-3.508l-3.862 4.47Zm10.361-5.552h3.265a2.714 2.714 0 0 0 1.747-4.648 2.711 2.711 0 0 0-1.888-.773 3.127 3.127 0 0 0-3.123 3.124v2.297Zm3.659-3.73a.677.677 0 1 1-.134 1.348.677.677 0 0 1 .134-1.348Z"
+                        clip-rule="evenodd" />
+                </svg>
+            <h1>RAG Evaluation Toolkit</h1>
+        </div>
+        
+        <div class="section-container">
+            <div class="components-container">
+                
+                <div class="component-card">
+                    <div class="component-title">GENERATOR</div>
+                    <div class="component-value tooltip  text-green ">
+                        100.0%
+                            <span class="tooltiptext" id="fade">The Generator is the LLM inside the RAG to generate the answers.</span>
+                    </div>
+                    <div class="component-bar">
+                        <progress max="100" value=100.0 class=" progress-green ">100.0%</progress>
+                    </div>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-title">RETRIEVER</div>
+                    <div class="component-value tooltip  text-green ">
+                        100.0%
+                            <span class="tooltiptext" id="fade">The Retriever fetches relevant documents from the knowledge base according to a user query.</span>
+                    </div>
+                    <div class="component-bar">
+                        <progress max="100" value=100.0 class=" progress-green ">100.0%</progress>
+                    </div>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-title">REWRITER</div>
+                    <div class="component-value tooltip  text-green ">
+                        100.0%
+                            <span class="tooltiptext" id="fade">The Rewriter modifies the user query to match a predefined format or to include the context from the chat history.</span>
+                    </div>
+                    <div class="component-bar">
+                        <progress max="100" value=100.0 class=" progress-green ">100.0%</progress>
+                    </div>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-title">ROUTING</div>
+                    <div class="component-value tooltip  text-green ">
+                        100.0%
+                            <span class="tooltiptext" id="fade">The Router filters the query of the user based on his intentions (intentions detection).</span>
+                    </div>
+                    <div class="component-bar">
+                        <progress max="100" value=100.0 class=" progress-green ">100.0%</progress>
+                    </div>
+                </div>
+                
+                <div class="component-card">
+                    <div class="component-title">KNOWLEDGE_BASE</div>
+                    <div class="component-value tooltip  text-green ">
+                        100.0%
+                            <span class="tooltiptext" id="fade">The knowledge base is the set of documents given to the RAG to generate the answers. Its scores is computed differently from the other components: it is the difference between the maximum and minimum correctness score across all the topics of the knowledge base.</span>
+                    </div>
+                    <div class="component-bar">
+                        <progress max="100" value=100.0 class=" progress-green ">100.0%</progress>
+                    </div>
+                </div>
+                
+                <div class="overall-card">
+                    <div class="overall-title">Overall Correctness Score</div>
+                    <div class="overall-value">100%</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <div class="section-card">
+                <div class="section-title">RECOMMENDATION</div>
+                <span class="section-content">Your RAG system is performing perfectly across all question types and topics, with all scores at 1.0, so no action is needed — just continue monitoring performance on new questions to catch regressions early.</span>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <div class="section-card">
+                <div class="section-title">CORRECTNESS BY TOPIC</div>
+                    <script type="text/javascript">
+        (function() {
+  const fn = function() {
+    Bokeh.safely(function() {
+      (function(root) {
+        function embed_document(root) {
+        const docs_json = '{"5cf05235-6b58-4924-a939-22f6d3ab97fa":{"version":"3.4.3","title":"Bokeh Application","roots":[{"type":"object","name":"Figure","id":"p1178","attributes":{"height":350,"width_policy":"max","x_range":{"type":"object","name":"DataRange1d","id":"p1180","attributes":{"start":0}},"y_range":{"type":"object","name":"FactorRange","id":"p1187","attributes":{"factors":["Others"]}},"x_scale":{"type":"object","name":"LinearScale","id":"p1188"},"y_scale":{"type":"object","name":"CategoricalScale","id":"p1189"},"title":{"type":"object","name":"Title","id":"p1185","attributes":{"text_color":"#E0E0E0","text_font":"Helvetica","text_font_size":"14pt"}},"outline_line_color":"#E0E0E0","outline_line_alpha":0.25,"renderers":[{"type":"object","name":"GlyphRenderer","id":"p1207","attributes":{"data_source":{"type":"object","name":"ColumnDataSource","id":"p1175","attributes":{"selected":{"type":"object","name":"Selection","id":"p1176","attributes":{"indices":[],"line_indices":[]}},"selection_policy":{"type":"object","name":"UnionRenderers","id":"p1177"},"data":{"type":"map","entries":[["correctness",{"type":"ndarray","array":{"type":"bytes","data":"AAAAAAAAWUA="},"shape":[1],"dtype":"float64","order":"little"}],["metadata_values",["Others"]],["colors",["#a50026"]]]}}},"view":{"type":"object","name":"CDSView","id":"p1208","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1209"}}},"glyph":{"type":"object","name":"HBar","id":"p1204","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"#1f77b4"},"fill_color":{"type":"value","value":"#14191B"}}},"nonselection_glyph":{"type":"object","name":"HBar","id":"p1205","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"#1f77b4"},"line_alpha":{"type":"value","value":0.1},"fill_color":{"type":"value","value":"#14191B"},"fill_alpha":{"type":"value","value":0.1},"hatch_alpha":{"type":"value","value":0.1}}},"muted_glyph":{"type":"object","name":"HBar","id":"p1206","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"#1f77b4"},"line_alpha":{"type":"value","value":0.2},"fill_color":{"type":"value","value":"#14191B"},"fill_alpha":{"type":"value","value":0.2},"hatch_alpha":{"type":"value","value":0.2}}}}},{"type":"object","name":"GlyphRenderer","id":"p1216","attributes":{"data_source":{"id":"p1175"},"view":{"type":"object","name":"CDSView","id":"p1217","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1218"}}},"glyph":{"type":"object","name":"HBar","id":"p1213","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"white"},"line_width":{"type":"value","value":2},"fill_color":{"type":"value","value":"#78BBFA"},"fill_alpha":{"type":"value","value":0.7}}},"nonselection_glyph":{"type":"object","name":"HBar","id":"p1214","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"white"},"line_alpha":{"type":"value","value":0.1},"line_width":{"type":"value","value":2},"fill_color":{"type":"value","value":"#78BBFA"},"fill_alpha":{"type":"value","value":0.1},"hatch_alpha":{"type":"value","value":0.1}}},"muted_glyph":{"type":"object","name":"HBar","id":"p1215","attributes":{"y":{"type":"field","field":"metadata_values"},"height":{"type":"value","value":0.85},"right":{"type":"field","field":"correctness"},"line_color":{"type":"value","value":"white"},"line_alpha":{"type":"value","value":0.2},"line_width":{"type":"value","value":2},"fill_color":{"type":"value","value":"#78BBFA"},"fill_alpha":{"type":"value","value":0.2},"hatch_alpha":{"type":"value","value":0.2}}}}},{"type":"object","name":"GlyphRenderer","id":"p1226","attributes":{"visible":false,"data_source":{"type":"object","name":"ColumnDataSource","id":"p1220","attributes":{"selected":{"type":"object","name":"Selection","id":"p1221","attributes":{"indices":[],"line_indices":[]}},"selection_policy":{"type":"object","name":"UnionRenderers","id":"p1222"},"data":{"type":"map","entries":[["x",[0]],["y",[0]]]}}},"view":{"type":"object","name":"CDSView","id":"p1227","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1228"}}},"glyph":{"type":"object","name":"Line","id":"p1223","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"line_color":"#EA3829","line_width":2,"line_dash":[6]}},"nonselection_glyph":{"type":"object","name":"Line","id":"p1224","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"line_color":"#EA3829","line_alpha":0.1,"line_width":2,"line_dash":[6]}},"muted_glyph":{"type":"object","name":"Line","id":"p1225","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"line_color":"#EA3829","line_alpha":0.2,"line_width":2,"line_dash":[6]}}}}],"toolbar":{"type":"object","name":"Toolbar","id":"p1186","attributes":{"tools":[{"type":"object","name":"HoverTool","id":"p1200","attributes":{"renderers":"auto","tooltips":[["topic","@metadata_values"],["Correctness","@correctness{0.00}"]]}}]}},"toolbar_location":null,"left":[{"type":"object","name":"CategoricalAxis","id":"p1195","attributes":{"ticker":{"type":"object","name":"CategoricalTicker","id":"p1196"},"formatter":{"type":"object","name":"CategoricalTickFormatter","id":"p1197"},"axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1198"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"below":[{"type":"object","name":"LinearAxis","id":"p1190","attributes":{"ticker":{"type":"object","name":"BasicTicker","id":"p1191","attributes":{"mantissas":[1,2,5]}},"formatter":{"type":"object","name":"BasicTickFormatter","id":"p1192"},"axis_label":"Correctness (%)","axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1193"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"center":[{"type":"object","name":"Grid","id":"p1194","attributes":{"axis":{"id":"p1190"},"grid_line_color":"#E0E0E0","grid_line_alpha":0.25}},{"type":"object","name":"Grid","id":"p1199","attributes":{"dimension":1,"axis":{"id":"p1195"},"grid_line_color":"#E0E0E0","grid_line_alpha":0.25}},{"type":"object","name":"Span","id":"p1219","attributes":{"location":100.0,"dimension":"height","line_color":"#EA3829","line_width":2,"line_dash":[6]}},{"type":"object","name":"Legend","id":"p1229","attributes":{"border_line_alpha":0,"background_fill_color":"#111516","background_fill_alpha":0.5,"label_text_color":"#E0E0E0","label_text_font":"Helvetica","label_text_font_size":"1.025em","label_standoff":8,"glyph_width":15,"spacing":8,"items":[{"type":"object","name":"LegendItem","id":"p1230","attributes":{"label":{"type":"value","value":"Correctness on the entire Testset"},"renderers":[{"id":"p1226"}]}}]}}],"background_fill_color":"#14191B","border_fill_color":"#15191C"}}]}}';
+        const render_items = [{"docid":"5cf05235-6b58-4924-a939-22f6d3ab97fa","roots":{"p1178":"ca58de59-203e-4992-a716-b56145ba33a4"},"root_ids":["p1178"]}];
+        root.Bokeh.embed.embed_items(docs_json, render_items);
+        }
+        if (root.Bokeh !== undefined) {
+          embed_document(root);
+        } else {
+          let attempts = 0;
+          const timer = setInterval(function(root) {
+            if (root.Bokeh !== undefined) {
+              clearInterval(timer);
+              embed_document(root);
+            } else {
+              attempts++;
+              if (attempts > 100) {
+                clearInterval(timer);
+                console.log("Bokeh: ERROR: Unable to run BokehJS code because BokehJS library is missing");
+              }
+            }
+          }, 10, root)
+        }
+      })(window);
+    });
+  };
+  if (document.readyState != "loading") fn();
+  else document.addEventListener("DOMContentLoaded", fn);
+})();
+    </script>
+
+                <div id="ca58de59-203e-4992-a716-b56145ba33a4" data-root-id="p1178" style="display: contents;"></div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <div class="section-card">
+                <div class="section-title">KNOWLEDGE BASE OVERVIEW</div>
+                    <script type="text/javascript">
+        (function() {
+  const fn = function() {
+    Bokeh.safely(function() {
+      (function(root) {
+        function embed_document(root) {
+        const docs_json = '{"4c0fa4dd-89cd-4a91-8634-fccfce1834f7":{"version":"3.4.3","title":"Bokeh Application","roots":[{"type":"object","name":"Tabs","id":"p1111","attributes":{"sizing_mode":"stretch_width","tabs":[{"type":"object","name":"TabPanel","id":"p1049","attributes":{"title":"Topic exploration","child":{"type":"object","name":"Figure","id":"p1004","attributes":{"sizing_mode":"stretch_width","x_range":{"type":"object","name":"Range1d","id":"p1013","attributes":{"start":25.723084449768066,"end":30.772993087768555}},"y_range":{"type":"object","name":"Range1d","id":"p1014","attributes":{"start":1.6956009268760681,"end":7.364513695240021}},"x_scale":{"type":"object","name":"LinearScale","id":"p1015"},"y_scale":{"type":"object","name":"LinearScale","id":"p1016"},"title":{"type":"object","name":"Title","id":"p1011","attributes":{"text_color":"#E0E0E0","text_font":"Helvetica","text_font_size":"14pt"}},"outline_line_color":"#E0E0E0","outline_line_alpha":0.25,"renderers":[{"type":"object","name":"GlyphRenderer","id":"p1044","attributes":{"data_source":{"type":"object","name":"ColumnDataSource","id":"p1001","attributes":{"selected":{"type":"object","name":"Selection","id":"p1002","attributes":{"indices":[],"line_indices":[]}},"selection_policy":{"type":"object","name":"UnionRenderers","id":"p1003"},"data":{"type":"map","entries":[["x",{"type":"ndarray","array":{"type":"bytes","data":"A3XWQUl+50H8l9ZB9TvhQei94UF8p89BWDzhQSEl2kFHAs9BcE7ZQSNY20E="},"shape":[11],"dtype":"float32","order":"little"}],["y",{"type":"ndarray","array":{"type":"bytes","data":"rBerQGIMnkA7QmFAkORDQB9GhUDVNrpAo+C6QKP8KEAeqY5AJG7NQIF1lkA="},"shape":[11],"dtype":"float32","order":"little"}],["topic",["Others","Others","Others","Others","Others","Others","Others","Others","Others","Others","Others"]],["id",[0,1,2,3,4,5,6,7,8,9,10]],["content",["FinNova Bank deployed seven specialized AI agents over twelve months. Production P1/P2 bugs per month decreased from 18.4 to 6.1, a 67% reduction. Annual operating savings totaled $2.4 million. Mean time to detection dropped from 4 hours 30 minutes to 12 minutes.","Playwright fixtures provide hermetic test setup. The Page Object Model encapsulates selectors and actions into reusable classes. Enterprise Playwright suites use sharded execution across CI runners, parallel test workers, and trace artifacts for failure debugging.","RAG evaluation measures retrieval quality via context precision and recall, and generation quality via faithfulness and answer relevancy. Hallucination occurs when the model outputs claims unsupported by retrieved context.","LLM-as-a-judge frameworks use a stronger model to score outputs of a weaker model. Common metrics: correctness, faithfulness, harmlessness, instruction-following. Judge bias and calibration drift are common failure modes.","Model Context Protocol (MCP) is an open standard for agentic test orchestration. MCP servers expose tools (file access, browser control, API calls) that an LLM agent can invoke during a test run.","Cloud-native QA practices include synthetic monitoring, chaos engineering, contract testing for microservices, and observability via distributed tracing. Kubernetes test environments are typically ephemeral, provisioned per pipeline run.","Prompt injection attacks craft user input to override system instructions. Defense layers: input sanitization, output filtering, privilege separation between user and system roles, and adversarial test suites that probe for known bypass patterns.","LLM-as-a-judge evaluation frameworks need rubric design, pairwise comparison strategies, and calibration against human ratings. Common pitfalls: position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.","Data integrity testing for distributed systems covers GraphQL contract validation, Kafka event schema enforcement, and database-level invariants. Eventual consistency requires temporal assertions, not just snapshot comparisons.","Enterprise Playwright at scale uses test sharding, dedicated CI fleets, custom reporters integrated with observability platforms, flake quarantine systems, and policy-driven test execution based on changed code paths.","Agentic test orchestration via MCP allows an LLM-driven test agent to navigate a system under test, generate inputs, observe outputs, and adapt the plan. Requires guardrails around destructive actions and audit trails for non-determinism."]],["color",{"type":"ndarray","array":["#999","#999","#999","#999","#999","#999","#999","#999","#999","#999","#999"],"shape":[11],"dtype":"object","order":"little"}]]}}},"view":{"type":"object","name":"CDSView","id":"p1045","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1046"}}},"glyph":{"type":"object","name":"Scatter","id":"p1041","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.7},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.7}}},"nonselection_glyph":{"type":"object","name":"Scatter","id":"p1042","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_alpha":{"type":"value","value":0.1},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.1},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.1}}},"muted_glyph":{"type":"object","name":"Scatter","id":"p1043","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_alpha":{"type":"value","value":0.2},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.2},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.2}}}}}],"toolbar":{"type":"object","name":"Toolbar","id":"p1012","attributes":{"logo":"grey","tools":[{"type":"object","name":"HoverTool","id":"p1027","attributes":{"renderers":"auto","tooltips":"\\n    &lt;div style=\\"width:400px;\\"&gt;\\n    &lt;b&gt;Document id:&lt;/b&gt; @id &lt;br&gt;\\n    &lt;b&gt;Topic:&lt;/b&gt; @topic &lt;br&gt;\\n    &lt;b&gt;Document Content:&lt;/b&gt; @content\\n    &lt;/div&gt;\\n    "}},{"type":"object","name":"PanTool","id":"p1028"},{"type":"object","name":"WheelZoomTool","id":"p1029","attributes":{"renderers":"auto"}},{"type":"object","name":"BoxZoomTool","id":"p1030","attributes":{"overlay":{"type":"object","name":"BoxAnnotation","id":"p1031","attributes":{"syncable":false,"level":"overlay","visible":false,"left":{"type":"number","value":"nan"},"right":{"type":"number","value":"nan"},"top":{"type":"number","value":"nan"},"bottom":{"type":"number","value":"nan"},"left_units":"canvas","right_units":"canvas","top_units":"canvas","bottom_units":"canvas","line_color":"black","line_alpha":1.0,"line_width":2,"line_dash":[4,4],"fill_color":"lightgrey","fill_alpha":0.5}}}},{"type":"object","name":"ResetTool","id":"p1036"},{"type":"object","name":"SaveTool","id":"p1037"}]}},"left":[{"type":"object","name":"LinearAxis","id":"p1022","attributes":{"ticker":{"type":"object","name":"BasicTicker","id":"p1023","attributes":{"mantissas":[1,2,5]}},"formatter":{"type":"object","name":"BasicTickFormatter","id":"p1024"},"axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1025"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"below":[{"type":"object","name":"LinearAxis","id":"p1017","attributes":{"ticker":{"type":"object","name":"BasicTicker","id":"p1018","attributes":{"mantissas":[1,2,5]}},"formatter":{"type":"object","name":"BasicTickFormatter","id":"p1019"},"axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1020"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"center":[{"type":"object","name":"Grid","id":"p1021","attributes":{"axis":{"id":"p1017"},"grid_line_color":"white","grid_line_alpha":0.25}},{"type":"object","name":"Grid","id":"p1026","attributes":{"dimension":1,"axis":{"id":"p1022"},"grid_line_color":"white","grid_line_alpha":0.25}},{"type":"object","name":"Legend","id":"p1047","attributes":{"title":"Knowledge Base Tospics","title_text_color":"#B1B1B1","title_text_font_style":"bold","border_line_alpha":0,"background_fill_color":"#111516","background_fill_alpha":0.5,"label_text_color":"#E0E0E0","label_text_font":"Helvetica","label_text_font_size":"1.025em","label_standoff":8,"glyph_width":15,"spacing":8,"items":[{"type":"object","name":"LegendItem","id":"p1048","attributes":{"label":{"type":"value","value":"Others"},"renderers":[{"id":"p1044"}],"index":0}}]}}],"background_fill_color":"#14191B","border_fill_color":"#15191C"}}}},{"type":"object","name":"TabPanel","id":"p1110","attributes":{"title":"Failures","child":{"type":"object","name":"Figure","id":"p1054","attributes":{"sizing_mode":"stretch_width","x_range":{"type":"object","name":"Range1d","id":"p1063","attributes":{"start":25.723084449768066,"end":30.772993087768555}},"y_range":{"type":"object","name":"Range1d","id":"p1064","attributes":{"start":1.6956009268760681,"end":7.364513695240021}},"x_scale":{"type":"object","name":"LinearScale","id":"p1065"},"y_scale":{"type":"object","name":"LinearScale","id":"p1066"},"title":{"type":"object","name":"Title","id":"p1061","attributes":{"text_color":"#E0E0E0","text_font":"Helvetica","text_font_size":"14pt"}},"outline_line_color":"#E0E0E0","outline_line_alpha":0.25,"renderers":[{"type":"object","name":"GlyphRenderer","id":"p1093","attributes":{"data_source":{"type":"object","name":"ColumnDataSource","id":"p1050","attributes":{"selected":{"type":"object","name":"Selection","id":"p1051","attributes":{"indices":[],"line_indices":[]}},"selection_policy":{"type":"object","name":"UnionRenderers","id":"p1052"},"data":{"type":"map","entries":[["x",{"type":"ndarray","array":{"type":"bytes","data":"ISXaQfyX1kHoveFBISXaQXBO2UE="},"shape":[5],"dtype":"float32","order":"little"}],["y",{"type":"ndarray","array":{"type":"bytes","data":"o/woQDtCYUAfRoVAo/woQCRuzUA="},"shape":[5],"dtype":"float32","order":"little"}],["topic",["Others","Others","Others","Others","Others"]],["correctness",[true,true,true,true,true]],["questions",["What are common pitfalls when using LLM-as-a-judge evaluation frameworks?","Which specific metrics are used to measure retrieval quality in RAG evaluation, and how do they differ from the metrics used to assess generation quality, such as faithfulness and answer relevancy?","What is the Model Context Protocol (MCP), and specifically which categories of tools does an MCP server expose to an LLM agent during a test run when it is used for agentic test orchestration?","Hi! I&#x27;m a QA engineer currently working on building an LLM-as-a-judge evaluation framework, and I&#x27;m in the middle of calibrating it against human ratings. What are the common pitfalls I should watch out for with these kinds of evaluation frameworks?","How does enterprise Playwright handle test execution at scale, and what role do custom reporters play in such setups?"]],["agent_answer",["**Common pitfalls when you put an LLM in the role of a judge**\\n\\n| Area | What can go wrong (as described in the guide) | Why it matters |\\n|------|-----------------------------------------------|----------------|\\n| **Biases built into the judge** | \\u2022 **Positional bias** \\u2013 the first answer in a pair is favoured. &lt;br&gt;\\u2022 **Verbosity bias** \\u2013 longer replies score higher even if they pad. &lt;br&gt;\\u2022 **Self\\u2011preference** \\u2013 a model scores outputs from its own family higher. &lt;br&gt;\\u2022 **Format / authority / language bias** \\u2013 markdown, citations or English get extra points. | These biases silently inflate scores or hide real defects. Mitigate by randomising order, penalising length, using a different model family, and spelling out bias\\u2011countering language in the rubric. |\\n| **Evaluation design anti\\u2011patterns** | \\u2022 Using **tiny datasets** or a single\\u2011score rubric. &lt;br&gt;\\u2022 Leaving **judge prompts unreviewed or un\\u2011versioned**. &lt;br&gt;\\u2022 **Missing prompt\\u2011version metadata** in traces. &lt;br&gt;\\u2022 Ignoring **production drift** (judge or SUT updates). | Small or poorly\\u2011specified test suites give unstable evidence; without versioning you cannot reproduce failures; drift makes past thresholds meaningless. |\\n| **Over\\u2011trusting the judge** | \\u2022 Treating **fluency as correctness**. &lt;br&gt;\\u2022 **Over\\u2011trusting judges** without human\\u2011in\\u2011the\\u2011loop calibration. &lt;br&gt;\\u2022 Using a judge from the **same model family** as the system under test. | Fluency \\u2260 factuality; a biased judge can agree with a bad answer; same\\u2011family scoring creates self\\u2011favouring bias. |\\n| **Missing safeguards** | \\u2022 Not **requiring reasoning output** (the `reason` field). &lt;br&gt;\\u2022 Not **pinning the judge model version** or setting an explicit **threshold**. &lt;br&gt;\\u2022 Not passing **retrievalContext** for RAG checks, so the judge can only guess plausibility. | Without reasoning you cannot debug failures; version drift and vague thresholds make gates flaky; lack of context lets the judge award points to hallucinated answers. |\\n| **Statistical/operational limits** | \\u2022 **Run\\u2011to\\u2011run variance** \\u2013 scores can fluctuate. &lt;br&gt;\\u2022 **Insufficient sample size** (need \\u226530 samples before trusting deltas). &lt;br&gt;\\u2022 **Cost scaling** \\u2013 dataset\\u202f\\u00d7\\u202fnumber\\u2011of\\u2011metrics grows quickly. | Variance can mask real regressions; too few samples give noisy signals; runaway costs can cripple CI. |\\n| **Process gaps** | \\u2022 Forgetting to **run pairs both ways** (A vs\\u202fB and B vs\\u202fA). &lt;br&gt;\\u2022 Not **separating retrieval evaluation from generation**. &lt;br&gt;\\u2022 Skipping **human\\u2011reviewed anchor sets** for rubric calibration. | Positional bias persists; retrieval\\u2011only failures are missed; uncalibrated rubrics drift away from human judgment. |\\n\\n**Bottom\\u2011line checklist to avoid these pitfalls**\\n\\n1. **Calibrate rubrics** on a","In the context of RAG (Retrieval-Augmented Generation) evaluation, the metrics used to measure retrieval quality are:\\n\\n- **Context Precision**: This metric measures how many of the retrieved chunks were actually used in the final answer. It is assessed via a usage check performed by an LLM judge.\\n- **Context Recall**: This metric evaluates the number of ground-truth-supporting chunks that were retrieved. It is determined by comparing the retrieved chunks to a reference.\\n\\nThese retrieval-specific metrics are distinct from the generation-focused metrics like **Faithfulness** and **Answer Relevancy**. Faithfulness assesses whether the claims in the answer are supported by the retrieved context, while Answer Relevancy determines if the answer addresses the question. These generation metrics are more concerned with the quality of the final response rather than the process of retrieving relevant information.","The Model Context Protocol (MCP) is an open-standard JSON-RPC protocol that enables communication between an LLM client (Host) and external servers (Servers) that expose Tools, Resources, and Prompts. In the context of agentic test orchestration, an MCP server exposes the following categories of tools to an LLM agent during a test run:\\n\\n- **Resources**: These are read-only contextual data, schemas, and environment state. For example, database entity relations, OpenAPI specs, and system logs.\\n- **Prompts**: These are reusable structured templates that guide the model&#x27;s reasoning. Examples include defect replication templates and boundary-condition test prompts.\\n- **Tools**: These are actionable, executable endpoints that change the system state. Examples include `playwright_click`, `execute_sql_query`, and `purge_kafka_topic`.\\n\\nBy exposing these categories of tools, the MCP server enables the LLM agent to interact with the system, access relevant data, and execute actions that are necessary for the test to be executed successfully.","Based on the provided context, here are the common pitfalls to watch out for when calibrating an LLM-as-a-judge evaluation framework against human ratings:\\n\\n1. **Judge Biases**: LLM judges have measurable biases such as positional bias, verbosity bias, and self-preference. These can distort scores and need to be actively defended against through mitigations like running every pair both ways, adding explicit rubric lines, or using a different model family for the judge.\\n\\n2. **Human-in-the-Loop (HITL) Calibration**: A judge is only trustworthy when its scores correlate with human reviewers. If agreement drops below the threshold, revise the rubric wording, not the threshold. Also, periodically re-rate production-sampled responses to monitor for drift.\\n\\n3. **Rubric Design**: Write `evaluation_steps` as a numbered checklist for better judge model performance. Keep the judge prompts versioned and reviewed. Separate the judge contract from the rubric to prevent a giant policy blob from making every judge behave the same.\\n\\n4. **Dataset Size**: Use a sufficient sample size (\\u226530) before trusting deltas. Tiny datasets can lead to unreliable results.\\n\\n5. **Costs**: Costs scale with dataset size \\u00d7 number of metrics. Be mindful of the budget implications.\\n\\n6. **Model Variance**: LLM-judge metrics have variance run-to-run. This means that the same evaluation might produce slightly different results if run at different times.\\n\\n7. **Over-trusting Judges**: Avoid over-trusting judges and always require reasoning output. The `reason` field is crucial for making failures debuggable.\\n\\n8. **Production Drift**: Ignoring production drift can lead to unreliable evaluations. Regularly re-rate production-sampled responses to monitor for drift.\\n\\n9. **Same-family Judges**: Using a judge from the same family as the System Under Test (SUT) can lead to self-favouring bias. Use a different model family for the judge when possible.\\n\\n10. **Single-score Quality**: Avoid single-score quality metrics. Instead, use multiple metrics to get a comprehensive view of the quality.\\n\\n11. **Unreviewed Judge Prompts**: Unreviewed judge prompts can lead to unreliable evaluations. Always keep judge prompts versioned and reviewed.\\n\\n12. **Missing Prompt Versions**: Missing prompt versions can make it difficult to reproduce and debug evaluations. Always keep track of prompt versions.\\n\\n13. **Fluent Hallucinations**: Fluent hallucinations can make it difficult to detect and correct errors. Use ground-truth examples and rubric calibration to mitigate this.\\n\\n14. **Weak Retrieval**: Weak retrieval can lead to unsupported or unsafe answers. Separate retrieval evaluation from answer evaluation to mitigate this.\\n\\n15. **Untracked Production Drift**: Untracked production drift can lead to unreliable evaluations. Use trace-based monitoring to track production drift.","Enterprise Playwright handles test execution at scale by implementing a robust architecture with clear boundaries and separation of concerns. The framework should be designed to separate product behaviour, integration behaviour, data behaviour, and operational behaviour. This involves using folder conventions, fixture contracts, page models, API clients, data builders, and CI configuration to create a structured and maintainable system. Custom reporters play a crucial role in this setup by capturing and retaining evidence such as HTML reports, trace.zip files, CI annotations, API logs, database snapshots, and code review comments. These reporters help in diagnosing failures quickly and maintaining a high level of credibility in release decisions. The strongest metrics for evaluating the framework&#x27;s performance include runtime, flake rate, failure age, coverage by risk, maintenance cost, and defect escape rate. The tools used, such as Playwright Test, TypeScript, APIRequestContext, Node.js, GitHub Actions, Docker, and SQL tooling, are less important than the discipline of turning risks into repeatable evidence."]],["reference_answer",["Common pitfalls include position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.","Retrieval quality is measured via context precision and context recall.","MCP is an open standard for agentic test orchestration. MCP servers expose tools such as file access, browser control, and API calls that an LLM agent can invoke during a test run.","The common pitfalls are position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.","Enterprise Playwright at scale uses test sharding, dedicated CI fleets, custom reporters integrated with observability platforms, flake quarantine systems, and policy-driven test execution based on changed code paths; the custom reporters specifically serve to integrate test results with observability platforms."]],["id",[7,2,4,7,9]],["content",["LLM-as-a-judge evaluation frameworks need rubric design, pairwise comparison strategies, and calibration against human ratings. Common pitfalls: position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.","RAG evaluation measures retrieval quality via context precision and recall, and generation quality via faithfulness and answer relevancy. Hallucination occurs when the model outputs claims unsupported by retrieved context.","Model Context Protocol (MCP) is an open standard for agentic test orchestration. MCP servers expose tools (file access, browser control, API calls) that an LLM agent can invoke during a test run.","LLM-as-a-judge evaluation frameworks need rubric design, pairwise comparison strategies, and calibration against human ratings. Common pitfalls: position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.","Enterprise Playwright at scale uses test sharding, dedicated CI fleets, custom reporters integrated with observability platforms, flake quarantine systems, and policy-driven test execution based on changed code paths."]],["color",["#0a980a","#0a980a","#0a980a","#0a980a","#0a980a"]]]}}},"view":{"type":"object","name":"CDSView","id":"p1094","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1095"}}},"glyph":{"type":"object","name":"Scatter","id":"p1090","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.7},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.7}}},"nonselection_glyph":{"type":"object","name":"Scatter","id":"p1091","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_alpha":{"type":"value","value":0.1},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.1},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.1}}},"muted_glyph":{"type":"object","name":"Scatter","id":"p1092","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"field","field":"color"},"line_alpha":{"type":"value","value":0.2},"line_width":{"type":"value","value":2},"fill_color":{"type":"field","field":"color"},"fill_alpha":{"type":"value","value":0.2},"hatch_color":{"type":"field","field":"color"},"hatch_alpha":{"type":"value","value":0.2}}}}},{"type":"object","name":"GlyphRenderer","id":"p1107","attributes":{"data_source":{"type":"object","name":"ColumnDataSource","id":"p1098","attributes":{"selected":{"type":"object","name":"Selection","id":"p1099","attributes":{"indices":[],"line_indices":[]}},"selection_policy":{"type":"object","name":"UnionRenderers","id":"p1100"},"data":{"type":"map","entries":[["x",{"type":"ndarray","array":{"type":"bytes","data":"A3XWQUl+50H8l9ZB9TvhQei94UF8p89BWDzhQSEl2kFHAs9BcE7ZQSNY20E="},"shape":[11],"dtype":"float32","order":"little"}],["y",{"type":"ndarray","array":{"type":"bytes","data":"rBerQGIMnkA7QmFAkORDQB9GhUDVNrpAo+C6QKP8KEAeqY5AJG7NQIF1lkA="},"shape":[11],"dtype":"float32","order":"little"}]]}}},"view":{"type":"object","name":"CDSView","id":"p1108","attributes":{"filter":{"type":"object","name":"AllIndices","id":"p1109"}}},"glyph":{"type":"object","name":"Scatter","id":"p1104","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"value","value":"grey"},"line_alpha":{"type":"value","value":0.2},"fill_color":{"type":"value","value":"grey"},"fill_alpha":{"type":"value","value":0.2},"hatch_color":{"type":"value","value":"grey"},"hatch_alpha":{"type":"value","value":0.2}}},"nonselection_glyph":{"type":"object","name":"Scatter","id":"p1105","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"value","value":"grey"},"line_alpha":{"type":"value","value":0.1},"fill_color":{"type":"value","value":"grey"},"fill_alpha":{"type":"value","value":0.1},"hatch_color":{"type":"value","value":"grey"},"hatch_alpha":{"type":"value","value":0.1}}},"muted_glyph":{"type":"object","name":"Scatter","id":"p1106","attributes":{"x":{"type":"field","field":"x"},"y":{"type":"field","field":"y"},"size":{"type":"value","value":6},"line_color":{"type":"value","value":"grey"},"line_alpha":{"type":"value","value":0.2},"fill_color":{"type":"value","value":"grey"},"fill_alpha":{"type":"value","value":0.2},"hatch_color":{"type":"value","value":"grey"},"hatch_alpha":{"type":"value","value":0.2}}}}}],"toolbar":{"type":"object","name":"Toolbar","id":"p1062","attributes":{"logo":"grey","tools":[{"type":"object","name":"PanTool","id":"p1077"},{"type":"object","name":"WheelZoomTool","id":"p1078","attributes":{"renderers":"auto"}},{"type":"object","name":"BoxZoomTool","id":"p1079","attributes":{"overlay":{"type":"object","name":"BoxAnnotation","id":"p1080","attributes":{"syncable":false,"level":"overlay","visible":false,"left":{"type":"number","value":"nan"},"right":{"type":"number","value":"nan"},"top":{"type":"number","value":"nan"},"bottom":{"type":"number","value":"nan"},"left_units":"canvas","right_units":"canvas","top_units":"canvas","bottom_units":"canvas","line_color":"black","line_alpha":1.0,"line_width":2,"line_dash":[4,4],"fill_color":"lightgrey","fill_alpha":0.5}}}},{"type":"object","name":"ResetTool","id":"p1085"},{"type":"object","name":"SaveTool","id":"p1086"},{"type":"object","name":"HoverTool","id":"p1053","attributes":{"renderers":[{"id":"p1093"}],"tooltips":"\\n    &lt;div style=\\"width:400px;\\"&gt;\\n    &lt;b&gt;Document id:&lt;/b&gt; @id &lt;br&gt;\\n    &lt;b&gt;Topic:&lt;/b&gt; @topic &lt;br&gt;\\n    &lt;b&gt;Question:&lt;/b&gt; @questions &lt;br&gt;\\n    &lt;b&gt;agent Answer:&lt;/b&gt; @agent_answer &lt;br&gt;\\n    &lt;b&gt;Reference Answer:&lt;/b&gt; @reference_answer &lt;br&gt;\\n    &lt;b&gt;Correctness:&lt;/b&gt; @correctness &lt;br&gt;\\n    &lt;b&gt;Content:&lt;/b&gt; @content\\n    &lt;/div&gt;\\n    "}}]}},"left":[{"type":"object","name":"LinearAxis","id":"p1072","attributes":{"ticker":{"type":"object","name":"BasicTicker","id":"p1073","attributes":{"mantissas":[1,2,5]}},"formatter":{"type":"object","name":"BasicTickFormatter","id":"p1074"},"axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1075"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"below":[{"type":"object","name":"LinearAxis","id":"p1067","attributes":{"ticker":{"type":"object","name":"BasicTicker","id":"p1068","attributes":{"mantissas":[1,2,5]}},"formatter":{"type":"object","name":"BasicTickFormatter","id":"p1069"},"axis_label_standoff":10,"axis_label_text_color":"#E0E0E0","axis_label_text_font":"Helvetica","axis_label_text_font_size":"1.25em","axis_label_text_font_style":"normal","major_label_policy":{"type":"object","name":"AllLabels","id":"p1070"},"major_label_text_color":"#E0E0E0","major_label_text_font":"Helvetica","major_label_text_font_size":"1.025em","axis_line_color":"#E0E0E0","axis_line_alpha":0,"major_tick_line_color":"#E0E0E0","major_tick_line_alpha":0,"minor_tick_line_color":"#E0E0E0","minor_tick_line_alpha":0}}],"center":[{"type":"object","name":"Grid","id":"p1071","attributes":{"axis":{"id":"p1067"},"grid_line_color":"white","grid_line_alpha":0.25}},{"type":"object","name":"Grid","id":"p1076","attributes":{"dimension":1,"axis":{"id":"p1072"},"grid_line_color":"white","grid_line_alpha":0.25}},{"type":"object","name":"Legend","id":"p1096","attributes":{"title":"Question Correctness","title_text_color":"#B1B1B1","title_text_font_style":"bold","border_line_alpha":0,"background_fill_color":"#111516","background_fill_alpha":0.5,"label_text_color":"#E0E0E0","label_text_font":"Helvetica","label_text_font_size":"1.025em","label_standoff":8,"glyph_width":15,"spacing":8,"items":[{"type":"object","name":"LegendItem","id":"p1097","attributes":{"label":{"type":"value","value":"True"},"renderers":[{"id":"p1093"}],"index":0}}]}}],"background_fill_color":"#14191B","border_fill_color":"#15191C"}}}}],"tabs_location":"below"}}]}}';
+        const render_items = [{"docid":"4c0fa4dd-89cd-4a91-8634-fccfce1834f7","roots":{"p1111":"aaedbb4e-36fa-450a-86f4-815f363279f2"},"root_ids":["p1111"]}];
+        root.Bokeh.embed.embed_items(docs_json, render_items);
+        }
+        if (root.Bokeh !== undefined) {
+          embed_document(root);
+        } else {
+          let attempts = 0;
+          const timer = setInterval(function(root) {
+            if (root.Bokeh !== undefined) {
+              clearInterval(timer);
+              embed_document(root);
+            } else {
+              attempts++;
+              if (attempts > 100) {
+                clearInterval(timer);
+                console.log("Bokeh: ERROR: Unable to run BokehJS code because BokehJS library is missing");
+              }
+            }
+          }, 10, root)
+        }
+      })(window);
+    });
+  };
+  if (document.readyState != "loading") fn();
+  else document.addEventListener("DOMContentLoaded", fn);
+})();
+    </script>
+
+                <div id="aaedbb4e-36fa-450a-86f4-815f363279f2" data-root-id="p1111" style="display: contents;"></div>
+            </div>
+        </div>
+
+        <div class="section-container">
+            <div class="section-card">
+
+                <div class="section-title">SELECTED METRICS</div>
+
+                
+
+            </div>
+        </div>
+
+        
+    </div>
+</div>
+
+
+
+<script type="text/javascript">
+    function opentab(evt, name) {
+    // Declare all variables
+    let i, tabcontent, tablinks;
+
+    // Get all elements with class="tabcontent" and hide them
+    tabcontent = document.getElementsByClassName("tabcontent");
+    for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+    }
+
+    // Get all elements with class="tablinks" and remove the class "active"
+    tablinks = document.getElementsByClassName("tablinks");
+    for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+    }
+
+    // Show the current tab, and add an "active" class to the button that opened the tab
+    document.getElementById(name).style.display = "block";
+    evt.currentTarget.className += " active";
+}
+</script>

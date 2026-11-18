@@ -1,0 +1,74 @@
+{
+  "rag_api": "https://alexpavsky.com",
+  "num_questions": 5,
+  "judge": "opencode/glm-5.3-flash",
+  "correctness": 1.0,
+  "minimum_correctness": 0.5,
+  "passed": 5,
+  "failed": 0,
+  "total": 5,
+  "evaluation_completed": true,
+  "quality_passed": true,
+  "cases": [
+    {
+      "id": "giskard-1",
+      "giskard_id": "522ef3b5-e206-4b22-8943-468ee94356de",
+      "question_type": "simple",
+      "topic": "Others",
+      "prompt": "What are common pitfalls when using LLM-as-a-judge evaluation frameworks?",
+      "reference_answer": "Common pitfalls include position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.",
+      "answer": "**Common pitfalls when you put an LLM in the role of a judge**\n\n| Area | What can go wrong (as described in the guide) | Why it matters |\n|------|-----------------------------------------------|----------------|\n| **Biases built into the judge** | • **Positional bias** – the first answer in a pair is favoured. <br>• **Verbosity bias** – longer replies score higher even if they pad. <br>• **Self‑preference** – a model scores outputs from its own family higher. <br>• **Format / authority / language bias** – markdown, citations or English get extra points. | These biases silently inflate scores or hide real defects. Mitigate by randomising order, penalising length, using a different model family, and spelling out bias‑countering language in the rubric. |\n| **Evaluation design anti‑patterns** | • Using **tiny datasets** or a single‑score rubric. <br>• Leaving **judge prompts unreviewed or un‑versioned**. <br>• **Missing prompt‑version metadata** in traces. <br>• Ignoring **production drift** (judge or SUT updates). | Small or poorly‑specified test suites give unstable evidence; without versioning you cannot reproduce failures; drift makes past thresholds meaningless. |\n| **Over‑trusting the judge** | • Treating **fluency as correctness**. <br>• **Over‑trusting judges** without human‑in‑the‑loop calibration. <br>• Using a judge from the **same model family** as the system under test. | Fluency ≠ factuality; a biased judge can agree with a bad answer; same‑family scoring creates self‑favouring bias. |\n| **Missing safeguards** | • Not **requiring reasoning output** (the `reason` field). <br>• Not **pinning the judge model version** or setting an explicit **threshold**. <br>• Not passing **retrievalContext** for RAG checks, so the judge can only guess plausibility. | Without reasoning you cannot debug failures; version drift and vague thresholds make gates flaky; lack of context lets the judge award points to hallucinated answers. |\n| **Statistical/operational limits** | • **Run‑to‑run variance** – scores can fluctuate. <br>• **Insufficient sample size** (need ≥30 samples before trusting deltas). <br>• **Cost scaling** – dataset × number‑of‑metrics grows quickly. | Variance can mask real regressions; too few samples give noisy signals; runaway costs can cripple CI. |\n| **Process gaps** | • Forgetting to **run pairs both ways** (A vs B and B vs A). <br>• Not **separating retrieval evaluation from generation**. <br>• Skipping **human‑reviewed anchor sets** for rubric calibration. | Positional bias persists; retrieval‑only failures are missed; uncalibrated rubrics drift away from human judgment. |\n\n**Bottom‑line checklist to avoid these pitfalls**\n\n1. **Calibrate rubrics** on a",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer covers the reference pitfalls (position bias, verbosity bias, self-enhancement/self-preference bias) and adds further valid, plausible pitfalls. It is truncated at the end but still substantially answers the question."
+    },
+    {
+      "id": "giskard-2",
+      "giskard_id": "0007b6a3-bf6a-49cd-9867-47f5b72c4322",
+      "question_type": "complex",
+      "topic": "Others",
+      "prompt": "Which specific metrics are used to measure retrieval quality in RAG evaluation, and how do they differ from the metrics used to assess generation quality, such as faithfulness and answer relevancy?",
+      "reference_answer": "Retrieval quality is measured via context precision and context recall.",
+      "answer": "In the context of RAG (Retrieval-Augmented Generation) evaluation, the metrics used to measure retrieval quality are:\n\n- **Context Precision**: This metric measures how many of the retrieved chunks were actually used in the final answer. It is assessed via a usage check performed by an LLM judge.\n- **Context Recall**: This metric evaluates the number of ground-truth-supporting chunks that were retrieved. It is determined by comparing the retrieved chunks to a reference.\n\nThese retrieval-specific metrics are distinct from the generation-focused metrics like **Faithfulness** and **Answer Relevancy**. Faithfulness assesses whether the claims in the answer are supported by the retrieved context, while Answer Relevancy determines if the answer addresses the question. These generation metrics are more concerned with the quality of the final response rather than the process of retrieving relevant information.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer correctly identifies context precision and context recall as retrieval quality metrics and clearly contrasts them with generation metrics like faithfulness and answer relevancy."
+    },
+    {
+      "id": "giskard-3",
+      "giskard_id": "bf732fd3-cbf6-4803-b38c-ceb65a865f7a",
+      "question_type": "distracting element",
+      "topic": "Others",
+      "prompt": "What is the Model Context Protocol (MCP), and specifically which categories of tools does an MCP server expose to an LLM agent during a test run when it is used for agentic test orchestration?",
+      "reference_answer": "MCP is an open standard for agentic test orchestration. MCP servers expose tools such as file access, browser control, and API calls that an LLM agent can invoke during a test run.",
+      "answer": "The Model Context Protocol (MCP) is an open-standard JSON-RPC protocol that enables communication between an LLM client (Host) and external servers (Servers) that expose Tools, Resources, and Prompts. In the context of agentic test orchestration, an MCP server exposes the following categories of tools to an LLM agent during a test run:\n\n- **Resources**: These are read-only contextual data, schemas, and environment state. For example, database entity relations, OpenAPI specs, and system logs.\n- **Prompts**: These are reusable structured templates that guide the model's reasoning. Examples include defect replication templates and boundary-condition test prompts.\n- **Tools**: These are actionable, executable endpoints that change the system state. Examples include `playwright_click`, `execute_sql_query`, and `purge_kafka_topic`.\n\nBy exposing these categories of tools, the MCP server enables the LLM agent to interact with the system, access relevant data, and execute actions that are necessary for the test to be executed successfully.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer correctly describes MCP as an open standard/protocol connecting LLM clients to servers exposing Tools, Resources, and Prompts, and gives plausible examples of executable tools (browser actions, SQL execution) relevant to agentic test orchestration. While it frames MCP's primitives as 'categories of tools' rather than listing file access/browser control/API calls exactly as the reference does, it is factually accurate, relevant, and answers the question adequately."
+    },
+    {
+      "id": "giskard-4",
+      "giskard_id": "b03094ee-5761-4f6b-80e5-5fa0f018b36d",
+      "question_type": "situational",
+      "topic": "Others",
+      "prompt": "Hi! I'm a QA engineer currently working on building an LLM-as-a-judge evaluation framework, and I'm in the middle of calibrating it against human ratings. What are the common pitfalls I should watch out for with these kinds of evaluation frameworks?",
+      "reference_answer": "The common pitfalls are position bias, verbosity bias, and self-enhancement bias when the judge evaluates its own outputs.",
+      "answer": "Based on the provided context, here are the common pitfalls to watch out for when calibrating an LLM-as-a-judge evaluation framework against human ratings:\n\n1. **Judge Biases**: LLM judges have measurable biases such as positional bias, verbosity bias, and self-preference. These can distort scores and need to be actively defended against through mitigations like running every pair both ways, adding explicit rubric lines, or using a different model family for the judge.\n\n2. **Human-in-the-Loop (HITL) Calibration**: A judge is only trustworthy when its scores correlate with human reviewers. If agreement drops below the threshold, revise the rubric wording, not the threshold. Also, periodically re-rate production-sampled responses to monitor for drift.\n\n3. **Rubric Design**: Write `evaluation_steps` as a numbered checklist for better judge model performance. Keep the judge prompts versioned and reviewed. Separate the judge contract from the rubric to prevent a giant policy blob from making every judge behave the same.\n\n4. **Dataset Size**: Use a sufficient sample size (≥30) before trusting deltas. Tiny datasets can lead to unreliable results.\n\n5. **Costs**: Costs scale with dataset size × number of metrics. Be mindful of the budget implications.\n\n6. **Model Variance**: LLM-judge metrics have variance run-to-run. This means that the same evaluation might produce slightly different results if run at different times.\n\n7. **Over-trusting Judges**: Avoid over-trusting judges and always require reasoning output. The `reason` field is crucial for making failures debuggable.\n\n8. **Production Drift**: Ignoring production drift can lead to unreliable evaluations. Regularly re-rate production-sampled responses to monitor for drift.\n\n9. **Same-family Judges**: Using a judge from the same family as the System Under Test (SUT) can lead to self-favouring bias. Use a different model family for the judge when possible.\n\n10. **Single-score Quality**: Avoid single-score quality metrics. Instead, use multiple metrics to get a comprehensive view of the quality.\n\n11. **Unreviewed Judge Prompts**: Unreviewed judge prompts can lead to unreliable evaluations. Always keep judge prompts versioned and reviewed.\n\n12. **Missing Prompt Versions**: Missing prompt versions can make it difficult to reproduce and debug evaluations. Always keep track of prompt versions.\n\n13. **Fluent Hallucinations**: Fluent hallucinations can make it difficult to detect and correct errors. Use ground-truth examples and rubric calibration to mitigate this.\n\n14. **Weak Retrieval**: Weak retrieval can lead to unsupported or unsafe answers. Separate retrieval evaluation from answer evaluation to mitigate this.\n\n15. **Untracked Production Drift**: Untracked production drift can lead to unreliable evaluations. Use trace-based monitoring to track production drift.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer directly addresses the question and includes the key pitfalls from the reference (position/positional bias, verbosity bias, self-preference/self-enhancement bias), plus additional plausible and relevant pitfalls for LLM-as-a-judge calibration. No contradictions or fabrications evident."
+    },
+    {
+      "id": "giskard-5",
+      "giskard_id": "c38af767-417f-4baf-be9e-4012fe757adf",
+      "question_type": "double",
+      "topic": "Others",
+      "prompt": "How does enterprise Playwright handle test execution at scale, and what role do custom reporters play in such setups?",
+      "reference_answer": "Enterprise Playwright at scale uses test sharding, dedicated CI fleets, custom reporters integrated with observability platforms, flake quarantine systems, and policy-driven test execution based on changed code paths; the custom reporters specifically serve to integrate test results with observability platforms.",
+      "answer": "Enterprise Playwright handles test execution at scale by implementing a robust architecture with clear boundaries and separation of concerns. The framework should be designed to separate product behaviour, integration behaviour, data behaviour, and operational behaviour. This involves using folder conventions, fixture contracts, page models, API clients, data builders, and CI configuration to create a structured and maintainable system. Custom reporters play a crucial role in this setup by capturing and retaining evidence such as HTML reports, trace.zip files, CI annotations, API logs, database snapshots, and code review comments. These reporters help in diagnosing failures quickly and maintaining a high level of credibility in release decisions. The strongest metrics for evaluating the framework's performance include runtime, flake rate, failure age, coverage by risk, maintenance cost, and defect escape rate. The tools used, such as Playwright Test, TypeScript, APIRequestContext, Node.js, GitHub Actions, Docker, and SQL tooling, are less important than the discipline of turning risks into repeatable evidence.",
+      "passed": true,
+      "status": "PASS",
+      "reason": "The answer addresses both parts of the question: it describes how enterprise Playwright setups handle execution at scale (structured architecture, CI configuration, evidence retention) and explains the role of custom reporters (capturing evidence like HTML reports, traces, CI annotations to diagnose failures). While it differs from the reference in specifics (no mention of sharding or observability integration), the reference is one acceptable example, and the answer is relevant, plausible, and not factually contradictory."
+    }
+  ]
+}

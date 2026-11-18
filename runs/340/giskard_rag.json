@@ -1,0 +1,12 @@
+{
+  "rag_api": "https://alexpavsky.com",
+  "num_questions": 5,
+  "judge": "opencode/glm-5.3-flash",
+  "correctness": 1.0,
+  "minimum_correctness": 0.5,
+  "passed": 5,
+  "failed": 0,
+  "total": 5,
+  "evaluation_completed": true,
+  "quality_passed": true
+}
