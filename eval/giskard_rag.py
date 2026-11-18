@@ -66,19 +66,35 @@ KB_CHUNKS = [
 ]
 
 
-def query_rag(question: str) -> str:
-    """Call the production RAG API and return the answer string."""
-    try:
-        r = requests.post(
-            f"{RAG_API}/api/rag/query",
-            json={"query": question},
-            timeout=60,
-        )
-        r.raise_for_status()
-        return r.json().get("answer", "")
-    except Exception as e:
-        log(f"    RAG call failed: {e}")
-        return ""
+def query_rag(question: str, max_retries: int = 3) -> str:
+    """Call the production RAG API and return the answer string.
+
+    Retries transient HTTP errors and blank answers. An empty string after
+    the last attempt is a real FAIL for the judge, not a missing report.
+    """
+    last_error = ""
+    for attempt in range(max_retries):
+        is_last = attempt == max_retries - 1
+        delay = 5 * (3 ** attempt)
+        try:
+            r = requests.post(
+                f"{RAG_API}/api/rag/query",
+                json={"query": question},
+                timeout=60,
+            )
+            r.raise_for_status()
+            answer = r.json().get("answer") or ""
+            if answer.strip():
+                return answer
+            last_error = "empty answer"
+        except Exception as e:
+            last_error = str(e)
+        if is_last:
+            log(f"    RAG call failed after {max_retries} attempts: {last_error}")
+            return ""
+        log(f"    RAG call failed ({last_error}); backing off {delay}s")
+        time.sleep(delay)
+    return ""
 
 
 class PermissiveCorrectnessMetric:
