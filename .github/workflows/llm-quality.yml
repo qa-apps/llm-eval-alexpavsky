@@ -46,7 +46,8 @@ jobs:
   llm-quality:
     needs: schedule-gate
     if: needs.schedule-gate.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
+    # ubuntu-latest is 26.04; Playwright 1.58 cannot install Chromium there.
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     outputs:
       eval_date: ${{ steps.eval_day.outputs.date }}
